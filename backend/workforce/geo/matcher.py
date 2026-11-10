@@ -57,6 +57,30 @@ def _candidates(db: Session, name_norm: str) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
+# Amtliche Namenszusätze, hinter denen ein Kurzname stehen kann: „Frankfurt am Main“, „Halle (Saale)“,
+# „Salzwedel, Hansestadt“, „Mühlhausen/Thüringen“ …
+_QUALIFIER = re.compile(r"^\s*(?:\(|,|/|\s(?:am|an|a\.|im|in|i\.|ob|bei|b\.|vor|v\.|auf|unter|über)\b)", re.I)
+
+
+def _alias_candidates(db: Session, locality: str) -> list[dict[str, Any]]:
+    """Gemeinden, deren amtlicher Name aus dem angegebenen Kurznamen plus Namenszusatz besteht."""
+    short = locality.strip()
+    base = fold(short)
+    if len(base) < 4:
+        return []
+    rows = db.execute(
+        sql("SELECT name, kind, ags, kreis_key, state_key, postal_code, population, lat, lon, gebietsstand "
+            "FROM geo_place WHERE country='DE' AND kind = 'municipality' AND name_norm LIKE :p LIMIT 200"),
+        {"p": base.replace("%", "").replace("_", " ") + " %"},
+    ).mappings().all()
+    out = []
+    for r in rows:
+        name = r["name"] or ""
+        if name.lower().startswith(short.lower()) and _QUALIFIER.match(name[len(short):]):
+            out.append(dict(r))
+    return out
+
+
 def _name_variants(locality: str) -> list[str]:
     base = fold(locality)
     variants = [base]
@@ -139,8 +163,14 @@ class GeoMatcher:
         if folded and NATIONWIDE.match(folded):
             return GeoMatch(method="nationwide_term", precision="country", nationwide=True, confidence=0.9)
         # 2) Ortsname
-        for i, variant in enumerate(_name_variants(name) if name else []):
+        variants = _name_variants(name) if name else []
+        for i, variant in enumerate(variants):
             cands = _candidates(self.db, variant)
+            alias = False
+            if not cands and i == 0:
+                # kein exakter Treffer: Kurzname eines amtlichen Namens mit Zusatz („Frankfurt“ → „Frankfurt am Main“)?
+                cands = _alias_candidates(self.db, name)
+                alias = bool(cands)
             if not cands:
                 continue
             if state_hint:
@@ -168,8 +198,10 @@ class GeoMatcher:
             if chosen is None:
                 return GeoMatch(method="ambiguous_name", state_key=state_hint, confidence=0.0)
             conf = {"place_name": 0.9, "place_name+plz": 0.93, "place_name+plz_prefix": 0.85, "place_name_dominant": 0.7}[method]
-            if i > 0:
-                conf -= 0.1  # nur über eine verkürzte Namensvariante gefunden
+            if i > 0 or alias:
+                conf -= 0.1  # nur über eine verkürzte Namensvariante bzw. einen Kurznamen gefunden
+            if alias:
+                method += "+short_name"
             precision = "district" if chosen["kind"] == "district" else "municipality"
             lat = float(chosen["lat"]) if chosen["lat"] is not None else None
             lon = float(chosen["lon"]) if chosen["lon"] is not None else None

@@ -194,7 +194,7 @@ def ba_berufe_xlsx(path: Path, month: date, overrides: dict[tuple[str, str, str,
     imp["A14"], imp["C14"] = "Erstellungsdatum:", datetime(month.year, month.month, 26)
     imp["A30"] = MARK
     wb.create_sheet("III")["A112"] = "Zeichenerklärung"
-    state_key = dict((n, k) for k, n in STATES)
+    state_key = {n: k for k, n in STATES}
     for series, view in ((1, "Übersicht"), (2, "Detailansicht")):
         off = 3 if series == 1 else 2  # erste Wertspalte (0-basiert): D bzw. C
         for n, region in enumerate(BERUFE_REGIONS, start=1):

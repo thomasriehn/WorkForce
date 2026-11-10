@@ -17,6 +17,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from sqlalchemy import select
 from sqlalchemy import text as sql
@@ -27,7 +28,7 @@ from ..config import Settings, get_settings
 from ..crawl.fetcher import BlockedError, Fetcher, FetchError, RobotsDisallowed, RobotsStore
 from ..db import session_scope
 from ..geo import vg250
-from ..models import AppState, StatDataset, StatIndicator, StatRelease
+from ..models import AppState, RobotsCache, StatDataset, StatIndicator, StatRelease
 from . import ba_berufe, ba_kreise, bevoelkerung, discovery, genesis_ui, gv_isys, kldb
 from .catalog import DATASET_BY_KEY, DATASETS, INDICATORS, Dataset
 from .common import (
@@ -50,6 +51,11 @@ __all__ = ["ImportProblem", "describe", "import_file", "run_imports", "seed_refe
 # Reihenfolge der automatischen Abrufe: erst Gebietsstand, dann Ortsreferenz und Klassifikation, dann Statistik.
 ORDER = ("vg250", "gv_isys", "kldb2010", "ba_arbeitslose_kreise", "ba_berufe", "bevoelkerung_kreise_alter")
 STATE_PREFIX = "stats_import:"
+HOST_STATE_PREFIX = "host:"
+# statistik.arbeitsagentur.de sperrte bei der Erkundung nach 5–6 Abrufen binnen weniger Minuten für 20–30 Minuten:
+# deshalb größerer Abstand, je Lauf nur „eine Seite + eine Datei“ je Produkt und nach einer Sperre eine feste Pause.
+BA_MIN_INTERVAL_SECONDS = 30.0
+BLOCK_PAUSE = timedelta(minutes=30)
 
 
 # --------------------------------------------------------------------------------------------------------
@@ -222,7 +228,31 @@ def make_fetcher(spec: Dataset, settings: Settings, robots: RobotsStore) -> Fetc
     """
     polite = settings.model_copy(update={"http_max_retries": 0 if spec.ba_host else 1,
                                          "http_backoff_base_seconds": max(20.0, settings.http_backoff_base_seconds)})
-    return Fetcher(spec.hosts, interval_seconds=settings.stats_request_interval_seconds, settings=polite, robots_store=robots)
+    interval = float(settings.stats_request_interval_seconds)
+    if spec.ba_host:
+        interval = max(interval, BA_MIN_INTERVAL_SECONDS)
+    return Fetcher(spec.hosts, interval_seconds=interval, settings=polite, robots_store=robots)
+
+
+def robots_store() -> RobotsStore:
+    """robots.txt-Zwischenspeicher über Läufe hinweg (Tabelle ``robots_cache``) – spart je Lauf einen Abruf pro Host.
+
+    Nicht verfügbare robots.txt (5xx, 429, kein Abruf möglich) wird nicht dauerhaft gespeichert, damit eine
+    vorübergehende Störung nicht einen ganzen Tag lang als „alles gesperrt“ nachwirkt.
+    """
+    def load(host: str) -> tuple[datetime, int | None, str | None] | None:
+        with session_scope() as db:
+            row = db.get(RobotsCache, host)
+            return (row.fetched_at, row.status_code, row.body) if row else None
+
+    def save(host: str, at: datetime, status: int | None, body: str | None) -> None:
+        if status is None or status == 429 or status >= 500:
+            return
+        with session_scope() as db:
+            db.execute(pg_insert(RobotsCache).values(host=host, fetched_at=at, status_code=status, body=body).on_conflict_do_update(
+                index_elements=["host"], set_={"fetched_at": at, "status_code": status, "body": body}))
+
+    return RobotsStore(load, save)
 
 
 def _state_get(key: str) -> dict[str, Any]:
@@ -338,12 +368,30 @@ def _auto_population(spec: Dataset, settings: Settings, robots: RobotsStore, sta
     raise ImportProblem("Bevölkerungstabelle konnte nicht abgerufen werden – " + " | ".join(problems))
 
 
+def _host_block(spec: Dataset, now: datetime) -> tuple[str, datetime] | None:
+    """Läuft für einen Host des Datensatzes noch die Pause nach einer Sperre?"""
+    for host in spec.hosts:
+        until = _state_get(HOST_STATE_PREFIX + host).get("blocked_until")
+        try:
+            if until and datetime.fromisoformat(until) > now:
+                return host, datetime.fromisoformat(until)
+        except ValueError:
+            continue
+    return None
+
+
 def _run_dataset(spec: Dataset, settings: Settings, robots: RobotsStore, scheduled: bool, beat: Callable[[], None]) -> dict[str, Any]:
     enabled, reason = _auto_status(spec, settings)
     if not enabled:
         return {"dataset": spec.key, "status": "skipped", "reason": reason, "landing_url": spec.landing_url}
     state = _state_get(spec.key)
     now = datetime.now(UTC)
+    block = _host_block(spec, now)
+    if block is not None:
+        local = block[1].astimezone(settings.tz)
+        return {"dataset": spec.key, "status": "skipped", "landing_url": spec.landing_url,
+                "reason": (f"{block[0]} hat zuletzt einen Abruf abgelehnt; bis {local:%d.%m.%Y %H:%M} Uhr wird dieser Host nicht erneut "
+                           "angefragt. Die Datei kann in der Zwischenzeit von Hand geladen und importiert werden.")}
     last = state.get("last_success_at")
     if scheduled and spec.min_check_days > 1 and last:
         try:
@@ -370,9 +418,13 @@ def _run_dataset(spec: Dataset, settings: Settings, robots: RobotsStore, schedul
                 "landing_url": spec.landing_url}
     except BlockedError as exc:
         state["last_status"], state["last_error"] = "blocked", str(exc)
+        host = urlsplit(exc.url or spec.landing_url).hostname or spec.hosts[0]
+        until = now + BLOCK_PAUSE
+        _state_put(HOST_STATE_PREFIX + host, {"blocked_until": until.isoformat(), "reason": str(exc), "dataset": spec.key})
         return {"dataset": spec.key, "status": "blocked", "landing_url": spec.landing_url,
-                "error": (f"Der Server hat den Abruf abgelehnt ({exc}); es wird nicht weiter nachgefasst. Der nächste geplante "
-                          "Lauf versucht es erneut; alternativ die Datei von Hand laden und importieren.")}
+                "error": (f"Der Server hat den Abruf abgelehnt ({exc}); es wird nicht weiter nachgefasst und {host} für "
+                          f"{int(BLOCK_PAUSE.total_seconds() // 60)} Minuten nicht mehr angefragt. Der nächste geplante Lauf "
+                          "versucht es erneut; alternativ die Datei von Hand laden und importieren.")}
     except (ImportProblem, FetchError) as exc:
         state["last_status"], state["last_error"] = "failed", str(exc)
         return {"dataset": spec.key, "status": "failed", "error": str(exc), "landing_url": spec.landing_url}
@@ -389,7 +441,7 @@ def run_imports(dataset_keys: list[str] | None = None, heartbeat: Callable[[], N
     beat = heartbeat or (lambda: None)
     scheduled = not dataset_keys
     keys = list(ORDER) if scheduled else [k for k in ORDER if k in dataset_keys] + [k for k in dataset_keys if k not in ORDER]
-    robots = RobotsStore()
+    robots = robots_store()
     results: dict[str, Any] = {}
     for key in keys:
         beat()

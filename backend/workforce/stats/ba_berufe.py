@@ -6,7 +6,9 @@ Kreiswerte erzeugt und Landeswerte nie auf Kreise verteilt.
 Übernommen wird je Region der Bestand des Berichtsmonats für Arbeitslose, Arbeitsuchende und gemeldete Arbeitsstellen:
 
 * Tabellen 1.x („Übersicht“, alle Anforderungsniveaus): Zeile „Insgesamt“ (``dim_key = ''``) sowie die Zeilen
-  „Gesamt“ der Berufshauptgruppen (2-Steller) und Berufsgruppen (3-Steller).
+  „Gesamt“ der Berufshauptgruppen (2-Steller) und Berufsgruppen (3-Steller). Die Arbeitsuchenden der Zeile
+  „Insgesamt“ werden zusätzlich als Kennzahl ``arbeitsuchende`` gespeichert: Ein öffentliches Kreisprodukt mit
+  Arbeitsuchenden ließ sich nicht belegen, die Länderebene dieses Hefts ist die feinste geprüfte Ebene.
 * Tabellen 2.x („Detailansicht“, ohne Helfer): nur die Berufsgattungen (5-Steller) – deren Anforderungsniveau ist
   Teil des Schlüssels und damit eindeutig.
 
@@ -48,6 +50,7 @@ DATASET_KEY = "ba_berufe"
 IND_ALO = "arbeitslose_beruf"
 IND_ASU = "arbeitsuchende_beruf"
 IND_STELLEN = "gemeldete_stellen_beruf"
+IND_ASU_TOTAL = "arbeitsuchende"  # Arbeitsuchende insgesamt (Zeile „Insgesamt“) – feinste öffentlich belegte Ebene: Länder
 
 _TABLE_SHEET = re.compile(r"^[12]\.\d{1,2}$")
 _REGION = re.compile(r"^(?:(\d{2})\s+)?(.+)$")
@@ -159,6 +162,9 @@ def _read_sheet(ws: Any, sheet: str, month: date, unrecognized: Counter[str]) ->
                 raise ImportProblem(f"{what}: Negativer Bestand bei {dim_key or 'Insgesamt'}: {raw!r}.")
             out.append(ValueRow(indicator, level, key, region_name, value, status, raw, dim_key=dim_key,
                                 dim_label=dim_label, classification_version=KLDB_VERSION))
+            if indicator == IND_ASU and dim_key == "":
+                # derselbe Wert zusätzlich als berufsunabhängige Kennzahl „Arbeitsuchende“ (keine Berechnung)
+                out.append(ValueRow(IND_ASU_TOTAL, level, key, region_name, value, status, raw))
     if view == "Übersicht" and not seen_total:
         raise ImportProblem(f"{what}: Zeile „Insgesamt“ nicht gefunden.")
     if not out:
@@ -207,7 +213,8 @@ def parse(path: Path, name: str) -> tuple[ParsedRelease, dict[str, Any], list[st
     start, end = month_bounds(month.year, month.month)
     notes = [f"Berichtsmonat laut Impressum: {month:%m/%Y}"]
     if len(days) == 1:
-        notes.append(f"Zähltag laut Tabellen: {fmt_date(next(iter(days)))}")
+        notes.append(f"Datumsangabe der Tabellen: {fmt_date(next(iter(days)))} (maßgeblich ist der Berichtsmonat; "
+                     "ein Zähltag ist nicht ausdrücklich genannt)")
     if as_date(meta.get("Erstellungsdatum")):
         notes.append(f"Erstellungsdatum laut Datei: {fmt_date(as_date(meta.get('Erstellungsdatum')))}")  # type: ignore[arg-type]
     if as_date(meta.get("Nächster Veröffentlichungstermin")):

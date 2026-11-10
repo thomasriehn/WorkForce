@@ -149,9 +149,9 @@ DATASETS: tuple[Dataset, ...] = (
                      "Länder, Kreise und Gemeinden (Zeitreihe Monats- und Jahreszahlen); https://statistik.arbeitsagentur.de"),
         update_cycle="monthly",
         notes=("Übernommen wird je Monatsausgabe nur der Berichtsmonat (Rechtskreis insgesamt) für Deutschland, Länder und "
-               "Kreise; Gebietsstand = Datenstand der Ausgabe. Das Produkt enthält keine Arbeitsuchenden. Die Kennzahl "
-               "„Arbeitsuchende“ auf Kreisebene ist angelegt, aber noch keinem geprüften öffentlichen Produkt zugeordnet; "
-               "Arbeitsuchende nach Ländern liefert der Datensatz „Arbeitsmarkt nach Berufen“ (Zeile Insgesamt). "
+               "Kreise; Gebietsstand = Datenstand der Ausgabe. Das Produkt enthält keine Arbeitsuchenden; ein öffentliches "
+               "Kreisprodukt mit Arbeitsuchenden ließ sich nicht belegen. Arbeitsuchende für Deutschland und die Länder "
+               "liefert der Datensatz „Arbeitsmarkt nach Berufen“ (Zeile Insgesamt). "
                "Zeichen: * anonymisiert, x keine Quote veröffentlicht (unter 15.000 zivile Erwerbspersonen), … Angabe "
                "fällt später an. " + BA_AUTO_NOTE),
         hosts=(BA_HOST,),
@@ -177,6 +177,7 @@ DATASETS: tuple[Dataset, ...] = (
                "gibt die BA nur als Sonderauswertung ab). Es werden keine Kreiswerte geschätzt oder verteilt. Übernommen: "
                "Bestand im Berichtsmonat für Deutschland und die 16 Länder; Insgesamt, Berufshauptgruppen (2-Steller) und "
                "Berufsgruppen (3-Steller) über alle Anforderungsniveaus sowie Berufsgattungen (5-Steller, ohne Helfer). "
+               "Die Arbeitsuchenden der Zeile „Insgesamt“ stehen zusätzlich als Kennzahl „Arbeitsuchende“ bereit. "
                "Die Liste der Berufe ist je Region unvollständig (nur Kategorien mit ausreichender Fallzahl). Zeichen: "
                "* anonymisiert, x nicht sinnvoll, - nichts vorhanden (echter Nullwert). " + BA_AUTO_NOTE),
         hosts=(BA_HOST,),
@@ -243,9 +244,10 @@ INDICATORS: tuple[Indicator, ...] = (
               "veröffentlicht – keine eigene Berechnung. Für Regionen mit weniger als 15.000 zivilen Erwerbspersonen "
               "veröffentlicht die BA keine Quote (Status „nicht verfügbar“).",
               "alle zivilen Erwerbspersonen (Bezugsgröße der BA)"),
-    Indicator("arbeitsuchende", "Arbeitsuchende (Bestand)", "Personen", "ba_arbeitslose_kreise",
-              "Bestand an Arbeitsuchenden im Berichtsmonat. " + _ASU_DEF + " Für diese Kennzahl ist derzeit kein geprüftes "
-              "öffentliches Kreisprodukt angebunden; es werden keine Werte geschätzt.",
+    Indicator("arbeitsuchende", "Arbeitsuchende (Bestand)", "Personen", "ba_berufe",
+              "Bestand an Arbeitsuchenden im Berichtsmonat (alle Zielberufe; Zeile „Insgesamt“ des Hefts „Arbeitsmarkt nach "
+              "Berufen“). " + _ASU_DEF + " Verfügbar nur für Deutschland und die Länder: Ein öffentliches Kreisprodukt mit "
+              "Arbeitsuchenden ließ sich nicht belegen; es werden keine Kreiswerte geschätzt oder aus Landeswerten verteilt.",
               "Arbeitsuchende (arbeitslos und nichtarbeitslos)"),
     Indicator("arbeitslose_beruf", "Arbeitslose nach Zielberuf (Bestand)", "Personen", "ba_berufe",
               "Bestand an Arbeitslosen im Berichtsmonat nach dem Zielberuf. " + _ALO_DEF + _BERUF_NOTE,

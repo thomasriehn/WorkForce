@@ -87,15 +87,17 @@ class ValueRow:
     classification_version: str | None = None
 
 
-_NUM_DE = re.compile(r"^[+-]?\d{1,3}(\.\d{3})*(,\d+)?$|^[+-]?\d+(,\d+)?$")
-_NUM_EN = re.compile(r"^[+-]?\d+(\.\d+)?$")
+_NUM_DE_GROUPED = re.compile(r"^[+-]?\d{1,3}(\.\d{3})+(,\d+)?$")  # 1.234 / 1.234,5 (Tausenderpunkt)
+_NUM_DE = re.compile(r"^[+-]?\d+,\d+$")                             # 8,1 (Dezimalkomma)
+_NUM_PLAIN = re.compile(r"^[+-]?\d+(\.\d+)?$")                      # 19137 / 8.1
 
 
 def _number_from_text(s: str) -> Decimal | None:
-    if _NUM_EN.match(s):
-        return Decimal(s)
-    if _NUM_DE.match(s):
+    """Zahl aus Text. Ein Punkt vor genau drei Ziffern gilt als deutscher Tausenderpunkt, sonst als Dezimalpunkt."""
+    if _NUM_DE_GROUPED.match(s) or _NUM_DE.match(s):
         return Decimal(s.replace(".", "").replace(",", "."))
+    if _NUM_PLAIN.match(s):
+        return Decimal(s)
     return None
 
 

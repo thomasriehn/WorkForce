@@ -87,7 +87,7 @@ class OccupationClassifier:
             if hit:
                 conf = (0.85 if hit[2] == 1 else 0.7) - 0.05 * i
                 return OccupationMatch(hit[0], hit[1], "title_exact", round(conf, 3))
-        self.db.execute(sql("SELECT set_limit(:l)"), {"l": self.FUZZY_MIN})
+        self.db.execute(sql("SELECT set_limit(CAST(:l AS real))"), {"l": self.FUZZY_MIN})
         for v in variants[-1:] + variants[:1]:
             if len(v) < 6 or len(v) > 80:
                 continue

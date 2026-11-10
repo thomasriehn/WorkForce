@@ -197,13 +197,13 @@ def test_interrupted_run_resumes_from_checkpoint_without_duplicates(db):
     from workforce import db as wf_db
     from workforce.config import get_settings
     from workforce.models import ScanTask
-    from workforce.pipeline.run import execute_run, request_control
+    from workforce.pipeline.run import execute_run, local_today, request_control
 
     from .helpers import fetcher_factory
 
     _, scope = make_source(db)
     pages = [[posting(f"r{p}{i}", f"Stelle {p}-{i}") for i in range(3)] for p in range(4)]
-    today = date.today()
+    today = local_today()  # lokales Datum (Europe/Berlin), nicht das UTC-Datum des Rechners
     fetched: list[int] = []
 
     def pause_after_second_page(i: int) -> None:

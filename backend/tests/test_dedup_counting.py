@@ -303,3 +303,30 @@ def test_daily_aggregates_are_reproducible_and_match_live_figures(db):
     # ungefilterte Zeitreihe nutzt die Aggregate und liefert dieselben Bestandszahlen wie die Live-Abfrage
     fast = [p["stock"] for p in analytics.timeseries(db, Filters(), D0, d1)["points"]]
     assert fast == [8, 9] == [analytics.totals(db, Filters(as_of=d))["total"] for d in (D0, d1)]
+
+
+def test_short_place_names_resolve_only_when_unambiguous(db):
+    """Kurznamen amtlicher Ortsnamen („Frankfurt“ → „Frankfurt am Main“) werden nur bei eindeutiger Lage zugeordnet."""
+    from sqlalchemy import text as sql
+
+    from workforce.geo.matcher import GeoMatcher
+    from workforce.normalize.text import fold
+
+    make_regions(db)
+    for name, ags, kreis, plz, pop in (("Musterfurt am Fluss", "91001900", "91001", "91099", 700000), ("Musterfurt (Tal)", "92001900", "92001", "92099", 60000),
+                                        ("Einzigheim, Hansestadt", "91002900", "91002", "91299", 20000), ("Stein-Musterheim", "92001901", "92001", "92098", 900)):
+        db.execute(sql("INSERT INTO geo_place (country, name, name_norm, kind, ags, kreis_key, state_key, postal_code, population, lat, lon) "
+                       "VALUES ('DE', :n, :nn, 'municipality', :a, :k, :s, :p, :pop, 50.5, 10.5)"), {"n": name, "nn": fold(name), "a": ags, "k": kreis, "s": kreis[:2], "p": plz, "pop": pop})
+        db.execute(sql("INSERT INTO postal_code (country, plz, ags, kreis_key, place_name) VALUES ('DE', :p, :a, :k, :n)"), {"p": plz, "a": ags, "k": kreis, "n": name})
+    db.commit()
+    g = GeoMatcher(db)
+    amb = g.match(loc("Musterfurt"))
+    assert amb.kreis_key is None and amb.method == "ambiguous_name"  # zwei Orte, kein Hinweis ⇒ ungeklärt statt geraten
+    with_plz = g.match(loc("Musterfurt", "92099"))
+    assert with_plz.kreis_key == "92001" and "short_name" in with_plz.method and with_plz.point_origin == "place_centroid"
+    with_state = g.match(RawLocation(locality="Musterfurt", region=None, country="DE", postal_code="91099"))
+    assert with_state.kreis_key == "91001"
+    single = g.match(loc("Einzigheim"))
+    assert single.kreis_key == "91002" and float(single.confidence) < 0.9  # eindeutig, aber als Kurzname mit Abschlag
+    assert g.match(loc("Stein")).kreis_key is None  # „Stein-Musterheim“ ist kein Namenszusatz von „Stein“
+    assert g.match(loc("Einzigheim, Hansestadt")).method == "place_name"  # exakter amtlicher Name bleibt der Normalfall
