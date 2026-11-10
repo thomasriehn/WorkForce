@@ -11,9 +11,10 @@ TS="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT="${DEST}/${TS}"
 umask 077
 mkdir -p "${OUT}"
-# shellcheck disable=SC1091
-set -a; . ./.env; set +a
-DB="${POSTGRES_DB:-workforce}"; DBUSER="${POSTGRES_USER:-workforce}"
+# Werte gezielt aus .env lesen (die Datei wird nicht als Shell-Skript ausgeführt – Werte dürfen Leerzeichen enthalten)
+env_get() { grep -E "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"; }
+DB="$(env_get POSTGRES_DB)"; DB="${DB:-workforce}"
+DBUSER="$(env_get POSTGRES_USER)"; DBUSER="${DBUSER:-workforce}"
 
 echo "[1/4] Datenbank-Dump (${DB}) …"
 docker compose exec -T db pg_dump -U "${DBUSER}" -d "${DB}" --format=custom --compress=6 --no-owner --no-privileges > "${OUT}/workforce_db.dump"

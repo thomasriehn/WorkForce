@@ -6,9 +6,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 MODE="${1:-}"; SRC="${2:-}"
 [ -n "${MODE}" ] && [ -d "${SRC}" ] || { echo "Aufruf: $0 --verify|--replace <Sicherungsverzeichnis>"; exit 2; }
-# shellcheck disable=SC1091
-set -a; . ./.env; set +a
-DB="${POSTGRES_DB:-workforce}"; DBUSER="${POSTGRES_USER:-workforce}"
+# Werte gezielt aus .env lesen (die Datei wird nicht als Shell-Skript ausgeführt – Werte dürfen Leerzeichen enthalten)
+env_get() { grep -E "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"; }
+DB="$(env_get POSTGRES_DB)"; DB="${DB:-workforce}"
+DBUSER="$(env_get POSTGRES_USER)"; DBUSER="${DBUSER:-workforce}"
 ( cd "${SRC}" && sha256sum --check --quiet SHA256SUMS ) || { echo "Prüfsummen stimmen nicht – Abbruch."; exit 1; }
 psql_db() { docker compose exec -T db psql -v ON_ERROR_STOP=1 -U "${DBUSER}" "$@"; }
 
@@ -40,7 +41,7 @@ case "${MODE}" in
     else
       echo "FEHLER: Abweichungen zwischen Sicherung und Wiederherstellung (siehe oben)."; exit 1
     fi
-    docker compose exec -T db psql -U "${DBUSER}" -d "${TEST_DB}" -At -c "SELECT 'PostGIS ' || postgis_version(), 'Kreise mit Geometrie: ' || (SELECT count(*) FROM region WHERE geom IS NOT NULL)"
+    docker compose exec -T db psql -U "${DBUSER}" -d "${TEST_DB}" -At -c "SELECT 'PostGIS ' || postgis_version(), 'Regionen mit Geometrie: ' || (SELECT count(*) FROM region WHERE geom IS NOT NULL)"
     tar -tzf "${SRC}/app_data.tar.gz" > /dev/null && echo "OK: Archiv der Referenzdateien ist lesbar ($(tar -tzf "${SRC}/app_data.tar.gz" | wc -l) Einträge)."
     echo "Die Testdatenbank ${TEST_DB} bleibt zur Ansicht bestehen. Entfernen: docker compose exec db dropdb -U ${DBUSER} ${TEST_DB}"
     ;;
@@ -48,7 +49,8 @@ case "${MODE}" in
     read -r -p "Betriebsdatenbank ${DB} und Volume app-data werden ERSETZT. Fortfahren? (ja/nein) " a; [ "${a}" = "ja" ] || exit 1
     docker compose stop web worker scheduler
     restore_into "${DB}"
-    docker compose run --rm --no-deps -T --user 0 --entrypoint sh web -c 'rm -rf /data/* && tar -C /data -xzf - && chown -R 10001:10001 /data' < "${SRC}/app_data.tar.gz"
+    # Läuft als Anwendungsbenutzer (Eigentümer von /data). root hätte hier wegen cap_drop: ALL keine Schreibrechte.
+    docker compose run --rm --no-deps -T --entrypoint sh web -c 'find /data -mindepth 1 -delete && tar -C /data --no-same-owner -xzf -' < "${SRC}/app_data.tar.gz"
     docker compose up -d
     echo "Wiederherstellung abgeschlossen. Bitte Anmeldung, Quellenverwaltung und Karte prüfen."
     ;;

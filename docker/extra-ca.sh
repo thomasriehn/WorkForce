@@ -1,7 +1,8 @@
 #!/bin/sh
 # Optional: zusätzliche Stammzertifikate während des Builds (z. B. hinter einem TLS-inspizierenden Proxy).
 # Aufruf im Dockerfile per "source"; ohne das Build-Secret "extra_ca" geschieht nichts.
-#   docker compose build --secret id=extra_ca,src=/pfad/zum/ca-bundle.crt   (bzw. docker build --secret …)
+#   docker build --secret id=extra_ca,src=/pfad/zum/ca-bundle.crt --build-arg HTTPS_PROXY=… -t workforce:0.1.0 .
+#   danach: docker compose up -d   (Compose verwendet das vorhandene Image workforce:0.1.0)
 # Das Zertifikat landet nicht im Image (Secret-Mount), nur die Umgebungsvariablen dieses Build-Schritts zeigen darauf.
 if [ -s /run/secrets/extra_ca ]; then
     cat /etc/ssl/certs/ca-certificates.crt /run/secrets/extra_ca > /tmp/build-ca-bundle.crt 2>/dev/null || cp /run/secrets/extra_ca /tmp/build-ca-bundle.crt
