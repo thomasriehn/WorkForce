@@ -269,7 +269,7 @@ async function walk(s) {
     await s.settle();
     const kldbHits = await s.api('/api/meta/kldb?q=Pflege');
     if (kldbHits.length > 0) {
-      await page.getByLabel('Beruf suchen (KldB 2010)').fill('Pflege');
+      await page.getByRole('combobox', { name: 'Beruf suchen (KldB 2010)' }).fill('Pflege');
       await page.locator('.typeahead__option').first().waitFor({ timeout: 8000 });
       await page.keyboard.press('Enter');
       await page.waitForURL(/kldb=/, { timeout: 8000 }).catch(() => problem(s.ctx, 'Berufsvorschlag setzt den KldB-Filter nicht'));
@@ -284,7 +284,7 @@ async function walk(s) {
       await s.shot('suche-filter-beruf-merkmal', false);
     }
     if (districts.length > 0) {
-      await page.getByLabel('Kreis oder kreisfreie Stadt').fill(districts[0].name.slice(0, 5));
+      await page.getByRole('combobox', { name: 'Kreis oder kreisfreie Stadt' }).fill(districts[0].name.slice(0, 5));
       await page.locator('.typeahead__option').first().waitFor({ timeout: 8000 });
       await page.keyboard.press('Enter');
       await page.waitForURL(/kreise=\d{5}/, { timeout: 8000 }).catch(() => problem(s.ctx, 'Kreisvorschlag setzt den Kreisfilter nicht'));
