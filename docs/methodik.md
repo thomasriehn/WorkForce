@@ -208,6 +208,10 @@ zugeordneten Arbeitsorten.
   voraus; andernfalls stehen die Größen getrennt nebeneinander. Landeswerte werden nicht auf Kreise verteilt.
 - Die Bevölkerung 15 bis unter 65 wird nur gebildet, wenn die Altersgruppen diesen Bereich lückenlos und ohne
   Überschneidung abdecken (eigene Berechnung, als solche gekennzeichnet).
+- Zeichen der Quelldateien: `*` (anonymisiert) wird als *unterdrückt* gespeichert, `x` und `...` als *nicht verfügbar*.
+  Im Berufe-Heft der BA wird `-` als echter Nullwert gespeichert; das ist aus den Veränderungsspalten der Mappe
+  abgeleitet, die Mappe selbst erläutert das Zeichen nicht.
+- Aus der Kreisdatei der BA wird je Import nur der Berichtsmonat übernommen, nicht die mitgelieferte Zeitreihe.
 
 ## 10. Grenzen
 
@@ -220,6 +224,10 @@ zugeordneten Arbeitsorten.
   täglich neu bestätigt.
 - **Extraktion:** Regelbasierte Erkennung kann Anforderungen übersehen oder falsch einordnen. Die Polarität
   „unklar“ existiert aus diesem Grund.
+- **Berufsklassifikation:** Liefert eine Quelle keine Berufsangabe, bleibt nur der Titel. Im Realtest mit 500 Anzeigen
+  des öffentlichen Dienstes erhielt rund ein Fünftel eine KldB-Zuordnung, davon mehr als die Hälfte nur über einen
+  ähnlichen Titel – mit sichtbar falschen Treffern. Diese Zuordnungen sind als unsicher gekennzeichnet; für
+  berufsbezogene Auswertungen reicht die Qualität derzeit nicht aus.
 - **Ortszuordnung:** Die PLZ-Referenz kennt je Gemeinde nur die PLZ des Verwaltungssitzes. Mehrdeutige Ortsnamen
   ohne weitere Angabe bleiben ungeklärt.
 - **Gebietsreformen:** Jede Region und jeder Statistikwert trägt seinen Gebietsstand. Unterschiedliche Stände werden nicht
