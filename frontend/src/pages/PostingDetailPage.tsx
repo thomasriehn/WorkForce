@@ -221,7 +221,6 @@ function DetailContent({ data, reload }: { data: PostingDetail; reload: () => vo
   const [error, setError] = useState<string | null>(null);
   const [splitResult, setSplitResult] = useState<number | null>(null);
   const cur = data.current;
-  const primary = data.members.find((m) => m.is_primary) ?? data.members[0];
   const featureTypes = meta.data?.feature_types ?? FEATURE_TYPE_LABELS;
 
   useEffect(() => {

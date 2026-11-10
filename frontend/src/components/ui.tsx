@@ -182,7 +182,7 @@ export function Async<T>({ state, children, loadingLabel, errorTitle, compact }:
   if (state.error) return <ErrorState error={state.error} onRetry={state.reload} title={errorTitle} compact={compact} />;
   if (state.data === undefined) return <LoadingState label={loadingLabel} compact={compact} />;
   return (
-    <div className={state.stale || state.loading ? 'is-refreshing' : undefined} aria-busy={state.loading || undefined}>
+    <div className={state.stale || state.loading ? 'async-content is-refreshing' : 'async-content'} aria-busy={state.loading || undefined}>
       {children(state.data)}
     </div>
   );

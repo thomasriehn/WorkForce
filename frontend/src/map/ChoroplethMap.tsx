@@ -113,6 +113,27 @@ export function ChoroplethMap({ geojson, styleOf, selected, onSelect, tooltipFor
     map.on('focus', () => map.scrollWheelZoom.enable());
     map.on('blur', () => map.scrollWheelZoom.disable());
 
+    // Eigener Tooltip außerhalb des Kartenrahmens: Leaflets Tooltips würden am Kartenrand abgeschnitten.
+    const tip = document.createElement('div');
+    tip.className = 'map-tip';
+    tip.setAttribute('role', 'tooltip');
+    tip.hidden = true;
+    document.body.append(tip);
+    const placeTip = (e: L.LeafletMouseEvent) => {
+      const { clientX, clientY } = e.originalEvent;
+      const w = tip.offsetWidth;
+      const h = tip.offsetHeight;
+      let x = clientX + 18;
+      if (x + w > window.innerWidth - 8) x = clientX - w - 18;
+      let y = clientY + 18;
+      if (y + h > window.innerHeight - 8) y = clientY - h - 18;
+      tip.style.left = `${Math.max(8, x)}px`;
+      tip.style.top = `${Math.max(8, y)}px`;
+    };
+    map.on('movestart zoomstart', () => {
+      tip.hidden = true;
+    });
+
     const keyOf = (l: L.Layer): string => ((l as L.Path & { feature?: GeoJSON.Feature }).feature?.properties as KreisProperties | undefined)?.key ?? '';
 
     const layer = L.geoJSON(geojson, {
@@ -123,13 +144,20 @@ export function ChoroplethMap({ geojson, styleOf, selected, onSelect, tooltipFor
       onEachFeature: (feature, l) => {
         const props = feature.properties as KreisProperties;
         const path = l as L.Path;
-        path.bindTooltip(() => latest.current.tooltipFor(props.key, props), { sticky: true, opacity: 1, className: 'map-tip', direction: 'auto' });
-        path.on('click', () => latest.current.onSelect(props.key));
-        path.on('mouseover', () => {
+        path.on('click', (e) => {
+          if ((e.originalEvent as PointerEvent).pointerType === 'touch') tip.hidden = true; // Details stehen dann im Feld „Ausgewählter Kreis“
+          latest.current.onSelect(props.key);
+        });
+        path.on('mouseover', (e) => {
+          tip.replaceChildren(latest.current.tooltipFor(props.key, props));
+          tip.hidden = false;
+          placeTip(e);
           if (!latest.current.selected.includes(props.key)) path.setStyle({ weight: 2.2, color: MAP_SELECTED, dashArray: undefined });
           path.bringToFront();
         });
+        path.on('mousemove', placeTip);
         path.on('mouseout', () => {
+          tip.hidden = true;
           const key = keyOf(path);
           path.setStyle(pathStyle(latest.current.styleOf(key), latest.current.selected.includes(key)));
           layer.eachLayer((other) => {
@@ -155,6 +183,7 @@ export function ChoroplethMap({ geojson, styleOf, selected, onSelect, tooltipFor
 
     return () => {
       observer.disconnect();
+      tip.remove();
       layerRef.current = null;
       mapRef.current = null;
       map.remove();
@@ -184,7 +213,7 @@ export function ChoroplethMap({ geojson, styleOf, selected, onSelect, tooltipFor
     if (!map || !center) return;
     const group = L.layerGroup([
       L.circle([center.lat, center.lon], { radius: center.radiusKm * 1000, color: MAP_SELECTED, weight: 1.5, dashArray: '6 4', fill: false, interactive: false }),
-      L.marker([center.lat, center.lon], { icon: centerIcon, keyboard: false, alt: center.label }).bindTooltip(center.label, { className: 'map-tip' }),
+      L.marker([center.lat, center.lon], { icon: centerIcon, keyboard: false, alt: center.label }).bindTooltip(center.label, { className: 'center-tip' }),
     ]).addTo(map);
     return () => {
       group.remove();

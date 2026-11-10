@@ -233,6 +233,8 @@ function MergeCandidatesCard() {
   const toast = useToast();
   const candidates = useFetch<MergeCandidate[]>('/api/merges/candidates?state=open&limit=100');
   const [busy, setBusy] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const PREVIEW = 8;
 
   const decide = (c: MergeCandidate, decision: 'merge' | 'reject') => {
     setBusy(`${c.id}-${decision}`);
@@ -281,7 +283,7 @@ function MergeCandidatesCard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((c) => (
+                  {(showAll ? data : data.slice(0, PREVIEW)).map((c) => (
                     <tr key={c.id}>
                       <td className="col-wrap">{side(c.a_title, c.a_employer, c.a_source, c.a_merged)}</td>
                       <td className="col-wrap">{side(c.b_title, c.b_employer, c.b_source, c.b_merged)}</td>
@@ -307,6 +309,13 @@ function MergeCandidatesCard() {
                   ))}
                 </tbody>
               </table>
+              {data.length > PREVIEW ? (
+                <p className="table-more">
+                  <button type="button" className="link-button" onClick={() => setShowAll((v) => !v)}>
+                    {showAll ? 'Weniger anzeigen' : `Alle ${data.length}${data.length >= 100 ? ' (höchstens 100 je Abruf)' : ''} offenen Kandidaten anzeigen`}
+                  </button>
+                </p>
+              ) : null}
             </TableWrap>
           )
         }
@@ -458,6 +467,8 @@ function StatisticsCard() {
                       </label>
                       <input id={ids.file} className="input input--file" name="file" type="file" required accept=".xlsx,.csv,.zip,.gpkg" />
                     </div>
+                  </div>
+                  <div className="row">
                     <Button type="submit" variant="primary" icon="upload" busy={busy} data-admin-action>
                       Importieren
                     </Button>

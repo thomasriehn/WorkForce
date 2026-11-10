@@ -23,7 +23,7 @@
   border-bottom: 1px solid var(--border);
 }
 
-.topbar__menu {
+.topbar .topbar__menu {
   display: none;
 }
 
@@ -182,6 +182,12 @@
   align-content: start;
 }
 
+.page > *,
+.stack > *,
+.grid > * {
+  min-width: 0;
+}
+
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -334,7 +340,7 @@
       'main';
   }
 
-  .topbar__menu {
+  .topbar .topbar__menu {
     display: inline-grid;
   }
 
@@ -373,7 +379,7 @@
     padding: var(--space-5) var(--space-4) var(--space-8);
   }
 
-  .grid--3 {
+  .grid--3:not(.grid--keep) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

@@ -307,7 +307,10 @@ export const MERGE_REASON_LABELS: Record<string, string> = {
   employer_reference: 'gleiche Stellenreferenz desselben Arbeitgebers',
   employer_url: 'identischer Zielverweis zum Arbeitgeber',
   employer_title_location: 'Arbeitgeber, Titel und Arbeitsort stimmen überein',
+  employer_title_overlap: 'Arbeitgeber und Titel stimmen überein, die Arbeitsorte nur teilweise',
+  employer_similar_title: 'gleicher Arbeitgeber, ähnlicher Titel, gemeinsamer Arbeitsort',
   manual: 'manuell zusammengeführt',
+  manual_split: 'manuell abgetrennt (eigene Anzeige)',
 };
 
 const MERGE_SUFFIX_LABELS: Record<string, string> = {

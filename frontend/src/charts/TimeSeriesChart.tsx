@@ -178,7 +178,7 @@ export function TimeSeriesChart({ series, compact, subject }: Props) {
       <p className="ts-chart__panel-title">Bekannter Bestand (Anzeigen)</p>
       <div className="ts-chart__plot" style={{ height: stockHeight }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={rows} margin={MARGIN} syncId="wf-timeseries" accessibilityLayer={false}>
+          <LineChart data={rows} margin={MARGIN} syncId="wf-timeseries">
             <CartesianGrid stroke={VIZ.grid} vertical={false} />
             {xAxis(true)}
             <YAxis width={Y_AXIS_WIDTH} tick={{ fill: VIZ.tick, fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => fmtInt(v)} allowDecimals={false} domain={[0, 'auto']} />
@@ -213,7 +213,7 @@ export function TimeSeriesChart({ series, compact, subject }: Props) {
       <p className="ts-chart__panel-title">Zugänge und Abgänge je Tag (Anzeigen)</p>
       <div className="ts-chart__plot" style={{ height: eventHeight }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={MARGIN} stackOffset="sign" syncId="wf-timeseries" barCategoryGap="18%" accessibilityLayer={false}>
+          <BarChart data={rows} margin={MARGIN} stackOffset="sign" syncId="wf-timeseries" barCategoryGap="18%">
             <CartesianGrid stroke={VIZ.grid} vertical={false} />
             {xAxis(false)}
             <YAxis width={Y_AXIS_WIDTH} tick={{ fill: VIZ.tick, fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => fmtInt(Math.abs(v))} allowDecimals={false} />

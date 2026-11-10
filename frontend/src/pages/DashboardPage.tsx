@@ -64,7 +64,7 @@ function ChangeTile({ days, change, sourceNames }: { days: string; change: Dashb
           <p className="dash-change__none">
             <Icon name="alert" size={16} /> Kein Vergleich möglich
           </p>
-          <p className="stat__hint">{change.message ?? 'Für die beiden Stichtage liegt keine vergleichbare Abdeckung vor.'}</p>
+          <p className="stat__hint">{(change.message ?? 'Für die beiden Stichtage liegt keine vergleichbare Abdeckung vor.').replace(/^Kein Vergleich möglich:\s*/, '')}</p>
         </>
       )}
       <details className="disclosure">
@@ -118,7 +118,7 @@ function DashboardContent({ data, sources }: { data: Dashboard; sources: Sources
             <Link to="/quellen">Quellenverwaltung</Link>.
           </Alert>
         ) : null}
-        <div className="grid grid--3">
+        <div className="grid grid--3 grid--keep">
           {KIND_TILES.map((t) => (
             <TotalsTile key={t.key} label={t.label} hint={t.hint} totals={data.totals[t.key]} to={t.query} />
           ))}
@@ -133,7 +133,7 @@ function DashboardContent({ data, sources }: { data: Dashboard; sources: Sources
         <h2 className="section-title" id="dash-changes">
           Veränderung des Bestands (Stellen)
         </h2>
-        <div className="grid grid--3">
+        <div className="grid grid--3 grid--keep">
           {(['7', '30', '90'] as const).map((d) => {
             const change = data.changes[d];
             return change ? <ChangeTile key={d} days={d} change={change} sourceNames={sourceNames} /> : null;

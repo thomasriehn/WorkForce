@@ -57,6 +57,7 @@ interface CheckOption {
 }
 
 function CheckList({ legend, options, selected, onChange, scroll, hideLegend }: { legend: string; options: CheckOption[]; selected: string[]; onChange: (next: string[]) => void; scroll?: boolean; hideLegend?: boolean }) {
+  if (options.length === 0) return null;
   return (
     <fieldset className="checklist">
       <legend className={hideLegend ? 'visually-hidden' : 'field__label'}>{legend}</legend>
@@ -295,7 +296,7 @@ export function FilterPanel({ ctl, meta, metaError }: PanelProps) {
           <CommitInput
             label="Ort oder PLZ"
             value={center}
-            placeholder="z. B. Kassel oder 34117"
+            placeholder="Ort oder PLZ"
             onCommit={(v) => {
               if (!v) update({ place: '', plz: '', radiusKm: null });
               else if (/^\d{5}$/.test(v)) update({ plz: v, place: '', radiusKm: f.radiusKm ?? DEFAULT_RADIUS_KM });
@@ -410,10 +411,12 @@ interface LayoutProps {
   metaError?: string | null;
   /** Der Seiteninhalt erhält die Schaltfläche, die das Bedienfeld öffnet (null, wenn die Filter daneben stehen). */
   children: (filterButton: ReactNode) => ReactNode;
+  /** Fensterbreite, ab der die Filter neben dem Inhalt stehen (darunter: einfahrendes Bedienfeld). */
+  inlineFrom?: number;
 }
 
-export function FilterLayout({ ctl, meta, metaError, children }: LayoutProps) {
-  const wide = useMediaQuery('(min-width: 1280px)');
+export function FilterLayout({ ctl, meta, metaError, children, inlineFrom = 1280 }: LayoutProps) {
+  const wide = useMediaQuery(`(min-width: ${inlineFrom}px)`);
   const [open, setOpen] = useState(false);
   const active = countActiveFilters(ctl.filters);
 

@@ -22,11 +22,19 @@ import { buildAdModel, buildChangeModel, buildContextModel, buildTooltip, type L
 const POPULATION_INDICATOR = 'bev_15_bis_unter_65';
 const VIEWS: MapView[] = ['weighted', 'distinct', 'rate', 'change', 'context'];
 const VIEW_SHORT: Record<MapView, string> = {
-  weighted: 'anteilig gezählte Anzeigen',
+  weighted: 'anteilig gezählt',
   distinct: 'unterschiedliche Anzeigen',
   rate: 'je 1.000 Einwohner',
   change: 'Veränderung',
-  context: 'Kontext: amtliche Statistik',
+  context: 'Kontextstatistik',
+};
+/** Vollständige Bezeichnungen (als Hinweistext der Umschalter; die Karte trägt sie als Überschrift). */
+const VIEW_TITLE: Record<MapView, string> = {
+  weighted: METRIC_LABELS.weighted,
+  distinct: METRIC_LABELS.distinct,
+  rate: METRIC_LABELS.rate,
+  change: 'Veränderung der Anzeigen über 7, 30 oder 90 Tage',
+  context: 'Bevölkerung und Arbeitsmarkt aus der amtlichen Statistik – getrennt von den Anzeigen',
 };
 
 function LegendSwatch({ entry }: { entry: LegendEntry }) {
@@ -211,7 +219,7 @@ export default function MapPage() {
       />
       <KindTabs value={filters.kindGroup} onChange={(kindGroup) => ctl.update({ kindGroup })} />
 
-      <FilterLayout ctl={ctl} meta={meta.data} metaError={meta.error?.message}>
+      <FilterLayout ctl={ctl} meta={meta.data} metaError={meta.error?.message} inlineFrom={1640}>
         {(filterButton) => (
           <>
             <div className="toolbar">
@@ -221,83 +229,82 @@ export default function MapPage() {
               </div>
             </div>
 
-            <Card className="map-controls">
-              <Segmented<MapView> label="Dargestellte Größe" value={view} options={VIEWS.map((v) => ({ value: v, label: VIEW_SHORT[v] }))} onChange={(v) => ctl.setParams({ metric: v === 'weighted' ? null : v })} />
-              {view === 'change' ? (
-                <div className="row row--top">
-                  <Segmented
-                    label="Zeitraum"
-                    size="sm"
-                    value={String(days)}
-                    options={[
-                      { value: '7', label: '7 Tage' },
-                      { value: '30', label: '30 Tage' },
-                      { value: '90', label: '90 Tage' },
-                    ]}
-                    onChange={(v) => ctl.setParams({ days: v === '30' ? null : v })}
-                  />
-                  <Segmented
-                    label="Verglichen wird"
-                    size="sm"
-                    value={changeBase}
-                    options={[
-                      { value: 'weighted', label: 'anteilig gezählte Anzeigen' },
-                      { value: 'distinct', label: 'unterschiedliche Anzeigen' },
-                    ]}
-                    onChange={(v) => ctl.setParams({ basis: v === 'weighted' ? null : v })}
-                  />
-                </div>
-              ) : null}
-              {view === 'context' ? (
-                <div className="stack stack--tight">
-                  <Alert tone="neutral" compact title="Kontextansicht – keine Anzeigenkennzahl">
-                    Amtliche Statistik steht getrennt neben den Anzeigen und wird nicht mit ihnen verrechnet. Die Anzeigenfilter wirken auf diese Ansicht
-                    nicht.
-                  </Alert>
-                  {overview.error ? <ErrorState compact error={overview.error} onRetry={overview.reload} title="Kennzahlen nicht verfügbar" /> : null}
-                  {overview.data && indicators.length === 0 ? (
-                    <p className="muted">Es sind noch keine Kennzahlen der amtlichen Statistik angelegt.</p>
-                  ) : (
-                    <div className="form-grid">
-                      <div className="field">
-                        <label className="field__label" htmlFor={indicatorId}>
-                          Kennzahl
-                        </label>
-                        <select id={indicatorId} className="select" value={indicator ?? ''} onChange={(e) => ctl.setParams({ indicator: e.target.value, period: null })}>
-                          {indicatorGroups.map(([group, items]) => (
-                            <optgroup key={group} label={group}>
-                              {items.map((i) => (
-                                <option key={i.key} value={i.key}>
-                                  {i.name} ({i.unit})
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="field">
-                        <label className="field__label" htmlFor={periodId}>
-                          Berichtszeitraum und Revision
-                        </label>
-                        <select id={periodId} className="select" value={periodParam ?? ''} disabled={!stats.data || stats.data.periods.length === 0} onChange={(e) => ctl.setParams({ period: e.target.value || null })}>
-                          <option value="">jüngster Stand (aktuelle Revision)</option>
-                          {(stats.data?.periods ?? []).map((p) => (
-                            <option key={`${p.period_key}~${p.revision}`} value={`${p.period_key}~${p.revision}`}>
-                              {p.period_key} · Revision {p.revision}
-                              {p.is_current ? '' : ' (ältere Fassung)'}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                  {currentIndicator?.definition ? <p className="field__hint">{currentIndicator.definition}{currentIndicator.population_group ? ` Bezugsgruppe: ${currentIndicator.population_group}.` : ''}</p> : null}
-                </div>
-              ) : null}
-            </Card>
-
             <div className="map-layout">
               <Card className="map-card" flush>
+                <div className="map-card__controls">
+                  <Segmented<MapView> label="Dargestellte Größe" value={view} options={VIEWS.map((v) => ({ value: v, label: VIEW_SHORT[v], title: VIEW_TITLE[v] }))} onChange={(v) => ctl.setParams({ metric: v === 'weighted' ? null : v })} />
+                  {view === 'change' ? (
+                    <div className="row row--top">
+                      <Segmented
+                        label="Zeitraum"
+                        size="sm"
+                        value={String(days)}
+                        options={[
+                          { value: '7', label: '7 Tage' },
+                          { value: '30', label: '30 Tage' },
+                          { value: '90', label: '90 Tage' },
+                        ]}
+                        onChange={(v) => ctl.setParams({ days: v === '30' ? null : v })}
+                      />
+                      <Segmented
+                        label="Verglichen wird"
+                        size="sm"
+                        value={changeBase}
+                        options={[
+                          { value: 'weighted', label: 'anteilig gezählte Anzeigen' },
+                          { value: 'distinct', label: 'unterschiedliche Anzeigen' },
+                        ]}
+                        onChange={(v) => ctl.setParams({ basis: v === 'weighted' ? null : v })}
+                      />
+                    </div>
+                  ) : null}
+                  {view === 'context' ? (
+                    <div className="stack stack--tight">
+                      <Alert tone="neutral" compact title="Kontextansicht – keine Anzeigenkennzahl">
+                        Amtliche Statistik steht getrennt neben den Anzeigen und wird nicht mit ihnen verrechnet. Die Anzeigenfilter wirken auf diese Ansicht
+                        nicht.
+                      </Alert>
+                      {overview.error ? <ErrorState compact error={overview.error} onRetry={overview.reload} title="Kennzahlen nicht verfügbar" /> : null}
+                      {overview.data && indicators.length === 0 ? (
+                        <p className="muted">Es sind noch keine Kennzahlen der amtlichen Statistik angelegt.</p>
+                      ) : (
+                        <div className="form-grid">
+                          <div className="field">
+                            <label className="field__label" htmlFor={indicatorId}>
+                              Kennzahl
+                            </label>
+                            <select id={indicatorId} className="select" value={indicator ?? ''} onChange={(e) => ctl.setParams({ indicator: e.target.value, period: null })}>
+                              {indicatorGroups.map(([group, items]) => (
+                                <optgroup key={group} label={group}>
+                                  {items.map((i) => (
+                                    <option key={i.key} value={i.key}>
+                                      {i.name} ({i.unit})
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="field">
+                            <label className="field__label" htmlFor={periodId}>
+                              Berichtszeitraum und Revision
+                            </label>
+                            <select id={periodId} className="select" value={periodParam ?? ''} disabled={!stats.data || stats.data.periods.length === 0} onChange={(e) => ctl.setParams({ period: e.target.value || null })}>
+                              <option value="">jüngster Stand (aktuelle Revision)</option>
+                              {(stats.data?.periods ?? []).map((p) => (
+                                <option key={`${p.period_key}~${p.revision}`} value={`${p.period_key}~${p.revision}`}>
+                                  {p.period_key} · Revision {p.revision}
+                                  {p.is_current ? '' : ' (ältere Fassung)'}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                      {currentIndicator?.definition ? <p className="field__hint">{currentIndicator.definition}{currentIndicator.population_group ? ` Bezugsgruppe: ${currentIndicator.population_group}.` : ''}</p> : null}
+                    </div>
+                  ) : null}
+                </div>
                 <div className="map-card__head">
                   <div>
                     <h2 className="card__title">{model?.metricLabel ?? VIEW_SHORT[view]}</h2>
@@ -365,10 +372,10 @@ export default function MapPage() {
 
                 <Card title={selectedProps ? selectedProps.name : 'Ausgewählter Kreis'} subtitle={selectedProps ? [selectedProps.type, selectedProps.state].filter(Boolean).join(' · ') : undefined}>
                   {filters.kreise.length === 0 ? (
-                    <p className="muted">Klicken Sie auf einen Kreis oder wählen Sie ihn über das Suchfeld aus. Liste und Zeitreihe unten beziehen sich dann auf diesen Kreis.</p>
+                    <p className="selected-hint">Klicken Sie auf einen Kreis oder wählen Sie ihn über das Suchfeld aus. Liste und Zeitreihe unten beziehen sich dann auf diesen Kreis.</p>
                   ) : null}
-                  {filters.kreise.length > 1 ? <p className="muted">{filters.kreise.length} Kreise sind als Filter gesetzt und in der Karte hervorgehoben.</p> : null}
-                  {selectedKey && !selectedProps && geo.data ? <p className="muted">Kreis {selectedKey} ist als Filter gesetzt, in den Kreisgrenzen aber nicht enthalten.</p> : null}
+                  {filters.kreise.length > 1 ? <p className="selected-hint">{filters.kreise.length} Kreise sind als Filter gesetzt und in der Karte hervorgehoben.</p> : null}
+                  {selectedKey && !selectedProps && geo.data ? <p className="selected-hint">Kreis {selectedKey} ist als Filter gesetzt, in den Kreisgrenzen aber nicht enthalten.</p> : null}
                   {selectedInfo && model ? (
                     <>
                       <dl className="kv kv--wrap">

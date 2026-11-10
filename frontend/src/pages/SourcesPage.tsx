@@ -62,8 +62,7 @@ function SourcesTab() {
                         Technischer Zustand
                       </th>
                       <th scope="col">Segment</th>
-                      <th scope="col">Zugriffsart</th>
-                      <th scope="col">Adapter</th>
+                      <th scope="col">Zugriffsart und Adapter</th>
                       <th scope="col">Geprüft am</th>
                       <th scope="col">Letzter vollständiger Lauf</th>
                       <th scope="col">Datenstand</th>
@@ -94,16 +93,20 @@ function SourcesTab() {
                             </span>
                           ) : null}
                         </td>
-                        <td className="col-wrap">{s.segment ?? <span className="muted">–</span>}</td>
-                        <td>{s.access_method ? (ACCESS_METHOD_LABELS[s.access_method] ?? s.access_method) : <span className="muted">–</span>}</td>
+                        <td className="col-segment">{s.segment ?? <span className="muted">–</span>}</td>
                         <td className="nowrap">
                           {s.adapter_available ? (
                             <>
-                              <code>{s.adapter_key}</code>
-                              <span className="table__sub">Version {s.adapter_version ?? '–'}</span>
+                              {s.access_method ? (ACCESS_METHOD_LABELS[s.access_method] ?? s.access_method) : 'Zugriffsart nicht festgelegt'}
+                              <span className="table__sub">
+                                Adapter <code>{s.adapter_key}</code> · Version {s.adapter_version ?? '–'}
+                              </span>
                             </>
                           ) : (
-                            <Badge tone="muted">kein Adapter</Badge>
+                            <>
+                              <Badge tone="muted">kein Adapter</Badge>
+                              {s.access_method ? <span className="table__sub">{ACCESS_METHOD_LABELS[s.access_method] ?? s.access_method}</span> : null}
+                            </>
                           )}
                         </td>
                         <td className="nowrap">{s.legal_checked_on ? fmtDate(s.legal_checked_on) : <span className="muted">–</span>}</td>
