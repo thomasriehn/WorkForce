@@ -167,10 +167,12 @@ class GeoMatcher:
         for i, variant in enumerate(variants):
             cands = _candidates(self.db, variant)
             alias = False
-            if not cands and i == 0:
-                # kein exakter Treffer: Kurzname eines amtlichen Namens mit Zusatz („Frankfurt“ → „Frankfurt am Main“)?
-                cands = _alias_candidates(self.db, name)
-                alias = bool(cands)
+            if i == 0 and (not cands or len({c["kreis_key"] for c in cands}) > 1):
+                # kein oder kein eindeutiger exakter Treffer: Kurznamen amtlicher Namen mit Zusatz einbeziehen
+                # („Frankfurt“ → „Frankfurt am Main“, „Langenfeld“ → auch „Langenfeld (Rheinland)“); PLZ/Land entscheiden.
+                extra = [c for c in _alias_candidates(self.db, name) if c["ags"] not in {x["ags"] for x in cands}]
+                alias = bool(extra)
+                cands = cands + extra
             if not cands:
                 continue
             if state_hint:
@@ -198,9 +200,10 @@ class GeoMatcher:
             if chosen is None:
                 return GeoMatch(method="ambiguous_name", state_key=state_hint, confidence=0.0)
             conf = {"place_name": 0.9, "place_name+plz": 0.93, "place_name+plz_prefix": 0.85, "place_name_dominant": 0.7}[method]
-            if i > 0 or alias:
+            via_alias = alias and fold(chosen["name"]) != variant
+            if i > 0 or via_alias:
                 conf -= 0.1  # nur über eine verkürzte Namensvariante bzw. einen Kurznamen gefunden
-            if alias:
+            if via_alias:
                 method += "+short_name"
             precision = "district" if chosen["kind"] == "district" else "municipality"
             lat = float(chosen["lat"]) if chosen["lat"] is not None else None

@@ -407,3 +407,31 @@ def rematch_unresolved(db: Session, limit: int = 200_000) -> int:
             db.flush()
     db.flush()
     return n
+
+
+def classify_missing_occupations(db: Session, limit: int = 500_000) -> int:
+    """Nachklassifikation nach Import der KldB-Verzeichnisse.
+
+    Ergänzt ausschließlich **fehlende** Berufszuordnungen aktueller Versionen (z. B. Anzeigen, die vor dem Import
+    der Klassifikation erfasst wurden). Bestehende Zuordnungen bleiben unverändert.
+    """
+    clf = OccupationClassifier(db)
+    if not clf.available():
+        return 0
+    rows = db.execute(sql(
+        "SELECT pv.id, pv.title, pv.occupation_label, pv.search_c FROM posting_version pv WHERE pv.valid_to IS NULL AND pv.kldb_code IS NULL LIMIT :lim"),
+        {"lim": limit}).all()
+    n = 0
+    for vid, title, label, search_c in rows:
+        occ = clf.classify(label, title)
+        if occ is None:
+            continue
+        db.execute(sql(
+            "UPDATE posting_version SET kldb_code = :c, kldb_source = :s, kldb_confidence = :conf, requirement_level = :lvl, classifier_version = :cv, "
+            "search_c = :sc, quality = quality || CAST(:q AS jsonb) WHERE id = :id"),
+            {"c": occ.code, "s": occ.source, "conf": occ.confidence, "lvl": occ.requirement_level, "cv": CLASSIFIER_VERSION, "id": vid,
+             "sc": (search_c + " " + fold(occ.name)).strip() if occ.name else search_c,
+             "q": '{"kldb_reclassified": true' + (', "kldb_uncertain": true' if occ.confidence < 0.7 else "") + "}"})
+        n += 1
+    db.flush()
+    return n

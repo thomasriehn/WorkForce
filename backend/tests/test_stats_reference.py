@@ -362,8 +362,9 @@ def test_kldb_classifier_fuzzy_path_with_loaded_titles(db, tmp_path, small_thres
     import_file("kldb2010", syn.kldb_alphabet_xlsx(tmp_path / "SYNTHETISCH_Alphabetisches-Verzeichnis.xlsx"))
     clf = OccupationClassifier(db)
     assert clf.classify(None, "Zirkusdirektor für Raumfahrt") is None           # kein Treffer, aber auch kein SQL-Fehler
-    near = clf.classify(None, "Musterpflegefachkräfte")                         # unscharfer Treffer
-    assert near is not None and (near.code, near.source) == ("81302", "title_fuzzy")
+    near = clf.classify(None, "Musterpflegefachkraft II")                       # unscharfer Treffer (hohe Ähnlichkeit)
+    assert near is not None and (near.code, near.source) == ("81302", "title_fuzzy") and near.confidence < 0.7  # bleibt als unsicher gekennzeichnet
+    assert clf.classify(None, "Musterpflegehelfer im Nachtdienst der Klinik") is None  # geringe Ähnlichkeit ⇒ lieber keine Zuordnung
 
 
 def test_kldb_validation(db, tmp_path, monkeypatch):

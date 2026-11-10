@@ -188,10 +188,11 @@ def cmd_stats(args: argparse.Namespace) -> int:
 
 
 def cmd_geo(args: argparse.Namespace) -> int:
-    from .pipeline.ingest import rematch_unresolved
+    """Ergänzt fehlende Orts- und Berufszuordnungen aktueller Versionen nach einem Referenzimport."""
+    from .pipeline.ingest import classify_missing_occupations, rematch_unresolved
 
     with session_scope() as db:
-        _print({"rematched_versions": rematch_unresolved(db)})
+        _print({"rematched_versions": rematch_unresolved(db), "classified_versions": classify_missing_occupations(db)})
     return 0
 
 
@@ -276,7 +277,7 @@ def build_parser() -> argparse.ArgumentParser:
     st.add_argument("dataset", nargs="?", help="Datensatzschlüssel oder 'all'")
     st.add_argument("--file", help="manueller Import aus lokaler Datei")
     st.set_defaults(fn=cmd_stats)
-    sub.add_parser("geo-rematch", help="Fehlende Ortszuordnungen nach Referenzimport ergänzen").set_defaults(fn=cmd_geo)
+    sub.add_parser("geo-rematch", help="Fehlende Orts- und Berufszuordnungen nach Referenzimport ergänzen").set_defaults(fn=cmd_geo)
     sy = sub.add_parser("synthetic", help="Ausdrücklich synthetische Daten für Skalierungstests")
     sy.add_argument("action", choices=["load", "purge"])
     sy.add_argument("--postings", type=int, default=100_000)

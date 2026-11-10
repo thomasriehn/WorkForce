@@ -59,10 +59,10 @@ def _h_maintenance(payload: dict[str, Any], beat: Callable[[], None]) -> dict[st
 
 
 def _h_geo_rematch(payload: dict[str, Any], beat: Callable[[], None]) -> dict[str, Any]:
-    from ..pipeline.ingest import rematch_unresolved
+    from ..pipeline.ingest import classify_missing_occupations, rematch_unresolved
 
     with session_scope() as db:
-        return {"rematched_versions": rematch_unresolved(db)}
+        return {"rematched_versions": rematch_unresolved(db), "classified_versions": classify_missing_occupations(db)}
 
 
 HANDLERS: dict[str, Callable[[dict[str, Any], Callable[[], None]], dict[str, Any]]] = {

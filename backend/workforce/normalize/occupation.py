@@ -31,7 +31,9 @@ class OccupationMatch:
 
 
 class OccupationClassifier:
-    FUZZY_MIN = 0.62
+    # Schwelle der Trigramm-Ähnlichkeit für die unscharfe Titelzuordnung. An realen Titeln geprüft (11/2026): unter ~0,75
+    # überwiegen falsche Treffer (z. B. „IT-Spezialist …“ → Radiologie). Treffer bleiben als unsicher gekennzeichnet.
+    FUZZY_MIN = 0.75
 
     def __init__(self, db: Session):
         self.db = db
