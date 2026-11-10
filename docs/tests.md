@@ -52,8 +52,49 @@ Aggregatabfrage; veralteter Wiederholungszähler in der Jobqueue; dauerhaft gesp
 | INTERAMT | kein Live-Lauf (Erlaubnisvorbehalt) | offline gegen die bei der Machbarkeitsprüfung gespeicherte Sitemap (10.882 Anzeigen-URLs) und eine Detailseite geprüft |
 | greenjobs | kein Live-Lauf (Erlaubnisvorbehalt) | offline gegen die gespeicherte Sitemap (714 Anzeigen) und eine Detailseite geprüft |
 
-Ein zweiter Tageslauf des Feeds (Überlappung des Fensters, neue Anzeigen) konnte am selben Kalendertag nicht real
-beobachtet werden; dieses Verhalten ist nur durch Tests mit synthetischem Feed belegt.
+Zweiter realer Tageslauf des Feeds (logisches Datum 11.11.2026, kurz nach Mitternacht Berliner Zeit): `complete`,
+Feedfenster überlappt mit dem Vortag, 500 Kennungen gesehen, **0 neue Anzeigen, 0 neue Versionen**; danach 500
+Quellanzeigen, 500 Versionen, 1.000 Beobachtungen. Neue Anzeigen zwischen zwei realen Läufen konnten in diesem
+kurzen Abstand nicht beobachtet werden; dieser Fall und das nicht überlappende Fenster sind nur durch Tests mit
+synthetischem Feed belegt.
+
+Ortszuordnung und Berufsklassifikation auf den 500 realen Anzeigen (nach Import von VG250, Gemeindeverzeichnis und
+KldB):
+
+| Prüfung | Ergebnis |
+|---|---|
+| Kreis zugeordnet | 497 von 500; ungeklärt: zwei Orte im Ausland ohne Länderangabe, einmal „bundesweit“ |
+| Zuordnungsweg | 477 über den amtlichen Ortsnamen, 15 über Name + PLZ, 4 nur über die PLZ, 1 über Kurzname + PLZ |
+| KldB-Zuordnung | 97 von 500 (41 exakter Titeltreffer, 56 ähnlicher Titel und als unsicher markiert); 403 ohne Zuordnung |
+
+Die Berufsklassifikation über den Titel ist damit **schwach**: Die Quelle liefert keine Berufsangabe, und die
+unscharfen Treffer enthalten sichtbar falsche Zuordnungen (z. B. „Lehrkraft für das Lehrfach Englisch“ →
+IT-Anwendungstraining). Sie sind als unsicher gekennzeichnet; für berufsbezogene Auswertungen reicht die Qualität
+noch nicht.
+
+## 3a. Amtliche Daten: realer Import
+
+Importiert wurden die am 10.11.2026 von den offiziellen Seiten geladenen Dateien – einmal auf der
+Entwicklungsmaschine und einmal im Worker-Container des Compose-Aufbaus (`workforce stats import <Datensatz> --file …`).
+
+| Datensatz | Stand | Ergebnis |
+|---|---|---|
+| `vg250` | Gebietsstand 31.12.2025 | 16 Länder, 400 Kreise mit Geometrie, 10.950 Gemeinden als Ortsreferenz; Kreis-GeoJSON 2,2 MB |
+| `gv_isys` | 30.09.2026 | 10.943 Gemeinden angereichert, 10.750 PLZ-Einträge; `06415` (Hanau), `07000`, `13000` als unbekannte Schlüssel gemeldet |
+| `kldb2010` | Systematik 2020, Benennungen 01/2026 | 2.193 Klassen, 18.863 Berufsbenennungen |
+| `ba_arbeitslose_kreise` | Berichtsmonat 2026-10 | 836 Werte; Leipzig (14713): 32.470 Arbeitslose, Quote 9,1 %; `06415` als unbekannter Schlüssel gemeldet |
+| `ba_berufe` | Berichtsmonat 2026-10 | 46.169 Werte für Deutschland und Länder; Deutschland: 2.954.598 Arbeitslose, 4.678.997 Arbeitsuchende, 653.993 gemeldete Stellen |
+| `bevoelkerung_kreise_alter` | Stichtag 31.12.2025 | 8.986 Werte; Summe 83.467.117; 15 bis unter 65: 52.627.803; Leipzig 414.411 |
+
+- Fehlwerte: von 55.991 Werten sind 49.898 Zahlen, 2.499 echte Nullwerte, 2.208 unterdrückt und 1.386 nicht verfügbar.
+- Erneuter Import derselben Datei: `unchanged`, keine neuen Zeilen.
+- Revisionen, Fehlwertzeichen und Kachelung der Altersgruppen sind durch Tests mit synthetischen Dateien belegt; eine
+  echte amtliche Korrektur wurde nicht beobachtet.
+- **Automatischer Abruf live geprüft:** Bevölkerung über die öffentliche GENESIS-Oberfläche (Chromium, „Download →
+  CSV (Flat)“) und Gemeindeverzeichnis – jeweils `unchanged` gegenüber der Probedatei. Für VG250 wurden Produktseite
+  und Link gefunden; der Download der 70-MB-Datei über den Importer wurde nicht erneut ausgeführt.
+- **Nicht live geprüft:** der automatische Abruf der drei BA-Datensätze (bewusst keine Anfragen, siehe
+  [betrieb.md](betrieb.md)); der Ausweichweg über die Regionaldatenbank.
 
 ## 4. Skalierungsmessung (synthetische Daten)
 
@@ -92,3 +133,70 @@ Einordnung: Such- und Kartenabfragen bleiben deutlich unter einer Sekunde. Die u
 Betrieb aus den Tagesaggregaten gelesen; der Messwert zeigt den ungünstigeren Live-Fall. Gefilterte Zeitreihen sind
 mit rund 1,5 s die langsamste interaktive Abfrage. Für zusätzliche Partitionierung oder Caches besteht bei dieser
 Größe kein Anlass. Mit real importierten Kreisgrenzen und anderer Hardware können die Werte abweichen.
+
+## 5. Compose-Abnahme, Neustart und Wiederherstellung (11.11.2026)
+
+Umgebung: Entwicklungsmaschine mit Docker 29.9 und Compose 5.6 – **kein Proxmox, kein LXC**. Das Image wurde wegen
+des TLS-inspizierenden Proxys dieser Umgebung mit `docker build --network host --secret id=extra_ca,…` gebaut;
+`docker compose up -d` hat dieses Image verwendet. Der Weg `docker compose up -d --build` ohne Proxy ist damit nicht
+eins zu eins ausgeführt worden.
+
+| Schritt | Ergebnis |
+|---|---|
+| Build | erfolgreich; Image 2,5 GB (mit Chromium) |
+| Frischer Start mit neu erzeugter `.env` | `db`, `web`, `worker`, `scheduler` nach rund 45 s `healthy`; `migrate` legt Schema und 16 Registereinträge an |
+| Administrator anlegen | einmalig angezeigtes Zufallspasswort; Anmeldung über die API erfolgreich |
+| Zugriffsschutz | ohne Anmeldung HTTP 401; nur `web` veröffentlicht einen Port (`127.0.0.1`); PostgreSQL von außen nicht erreichbar; Prozesse laufen als Benutzer 10001; Chromium startet im gehärteten Container |
+| Amtliche Daten im Container importiert | alle sechs Datensätze, Quelldateien unter `/data/downloads` (99 MB) |
+| Neustart (`docker compose down`, `up -d`) | identische Zeilenzahlen vor und nach dem Neustart (500 Anzeigen, 1.000 Beobachtungen, 416 Regionen, 55.991 Statistikwerte, Benutzer, Quellenstatus); Anmeldung funktioniert |
+| Sicherung (`scripts/backup.sh`) | Dump 14 MB, Referenzdateien 98 MB, Konfiguration, Prüfsummen |
+| Probe-Restore (`scripts/restore.sh --verify`) in frische Datenbank | Schemaversion und alle Zeilenzahlen identisch; Stichproben: Anzeigenhistorie, Kreisgeometrien mit Punkt-in-Polygon, Statistikwerte, Quellenkonfiguration mit Freigabevermerk, Benutzer, Volltextsuche |
+| Vollständige Wiederherstellung (`--replace`) nach simuliertem Verlust | Anzeigen, Statistik und Referenzdateien wieder vorhanden, Dienste `healthy`, Anmeldung und Karte funktionieren |
+
+Einschränkungen dieser Abnahme:
+
+- Die Compose-Container hatten in der Entwicklungsumgebung keinen Internetzugang. Die 500 real erfassten Anzeigen
+  wurden deshalb aus der Entwicklungsdatenbank übertragen; ein Scan **aus dem Container heraus** wurde nicht ausgeführt.
+- Der zeitgesteuerte Lauf um 03:15 Uhr wurde nicht in Echtzeit abgewartet; die Planung ist durch Tests belegt.
+- Beim ersten Versuch der vollständigen Wiederherstellung scheiterte das Zurückspielen der Referenzdateien (Schritt
+  lief als root ohne Schreibrechte). Das Skript wurde korrigiert; der zweite Durchlauf war erfolgreich.
+
+## 6. Oberfläche
+
+Geprüft mit Chromium gegen den Compose-Aufbau mit den realen Daten (Anmeldung als Administrator, alle Bereiche
+aufgerufen): keine Konsolenfehler, keine fehlgeschlagenen Anfragen, **keine Anfrage an fremde Hosts** (keine
+Kartenkacheln, keine Schriftarten, kein API-Key). Karte mit 400 Kreisflächen, Legende mit getrennter Darstellung
+von „0“ und „keine Daten“, Kennzeichnung geringer Fallzahlen; Suche mit Trefferzahl, Suchumfang und geografischer
+Aufschlüsselung; Dashboard mit Hinweis „Kein Vergleich möglich“ samt Vergleichsgrundlage.
+
+Nicht systematisch geprüft: Bedienung per Tastatur und Screenreader, ältere Browser, reale Tablets (nur
+Bildschirmbreite 820 px im automatisierten Durchlauf).
+
+## 7. Abnahmekriterien
+
+| Nr. | Kriterium | Stand | Beleg |
+|---|---|---|---|
+| 1 | Frischer Aufbau per Docker Compose; Daten überleben Neustart | **erfüllt** (Entwicklungsmaschine, nicht Proxmox) | Abschnitt 5 |
+| 2 | Angebundene Quellen liefern reale Titel, Arbeitgeber/Ort, funktionierende Originalverweise; aktive und vorgemerkte Adapter unterscheidbar | **teilweise:** eine Quelle live (service.bund.de); karriere.bund.de live nicht erreichbar; INTERAMT und greenjobs nur offline geprüft. Zielabdeckung von drei freigegebenen Quellen **nicht erreicht** | Abschnitt 3, [quellenregister.md](quellenregister.md) |
+| 3 | Wiederholter Tageslauf ohne Dubletten; unterbrochene Jobs werden fortgesetzt | **erfüllt** | Tests; realer zweiter Tageslauf |
+| 4 | Dieselbe Anzeige auf zwei Portalen zählt einmal; ähnliche echte Ausschreibungen bleiben getrennt | **erfüllt (synthetisch)** – mit nur einer Live-Quelle real nicht beobachtbar | `test_dedup_counting.py` |
+| 5 | Geänderte Anforderung erzeugt Version; Trackingparameter nicht | **erfüllt (synthetisch)** | `test_pipeline.py` |
+| 6 | Timeout, CAPTCHA, 403, Layoutänderung, Trefferlimit, unvollständige Pagination ohne Massenarchivierung | **erfüllt (synthetisch)**; real: blockierter Lauf bei karriere.bund.de ohne Folgen für den Bestand | `test_pipeline.py`, Abschnitt 3 |
+| 7 | Neue Quellen und geänderte Suchbereiche ohne unkommentierten Trendanstieg | **erfüllt (synthetisch)**; real: Dashboard zeigt „Kein Vergleich möglich“ | `test_dedup_counting.py` |
+| 8 | Zählregeln für Mehrfachstandorte, Remote, ungeklärte Orte | **erfüllt (synthetisch)** | `test_dedup_counting.py` |
+| 9 | Filter wirken konsistent auf Liste, Karte, Diagramm | **erfüllt** | `test_dedup_counting.py` |
+| 10 | Reale amtliche Regionaldaten mit Berichtszeitraum; Arbeitslose und Arbeitsuchende getrennt; Fehlwerte keine Nullen | **erfüllt**; Arbeitsuchende nur bis Bundeslandebene verfügbar | Abschnitt 3a |
+| 11 | Revidierte Statistikdatei erhält neuen Stand; alte Werte rekonstruierbar | **erfüllt (synthetisch)** – keine echte Korrektur beobachtet | `test_stats_statistics.py` |
+| 12 | Karte und Kernsuche ohne bezahlten Dienst und ohne API-Key | **erfüllt** | Abschnitt 6 |
+| 13 | Nach Restore sind Anzeigenhistorie, Regionaldaten und Quellenkonfiguration verfügbar | **erfüllt** | Abschnitt 5 |
+
+## 8. Nicht geprüft
+
+- Betrieb im LXC unter Proxmox (alles in [proxmox-lxc.md](proxmox-lxc.md) ist aus der offiziellen Dokumentation
+  abgeleitet und als ungetestet gekennzeichnet).
+- Mehrtägiger Dauerbetrieb, der nächtliche Zeitplan in Echtzeit, Verhalten bei wachsendem Realbestand.
+- Portalübergreifende Dubletten, Wegfall und Inhaltsänderungen an realen Anzeigen (dafür fehlen eine zweite
+  Live-Quelle und mehrere Beobachtungstage).
+- Automatischer Abruf der BA-Statistikdateien, VG250-Download über den Importer.
+- Reverse-Proxy-Beispiele (`deploy/`) – nicht ausgeführt.
+- Die Prüfung von stellenanzeigen.de und yourfirm aus einem deutschen Netz.
