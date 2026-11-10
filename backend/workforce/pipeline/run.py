@@ -14,7 +14,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
-from sqlalchemy import func, or_, select, text as sql
+from sqlalchemy import and_, func, or_, select, text as sql
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -263,8 +263,10 @@ class RunEngine:
         recheck_before = datetime.now(UTC) - timedelta(days=self.settings.detail_recheck_days)
         q = (
             select(SourcePosting)
-            .where(SourcePosting.source_id == self.source.id, SourcePosting.status.in_(IN_STOCK),
-                   or_(SourcePosting.detail_due.is_(True), SourcePosting.last_detail_check_at < recheck_before))
+            .where(SourcePosting.source_id == self.source.id,
+                   or_(and_(SourcePosting.status.in_(IN_STOCK), or_(SourcePosting.detail_due.is_(True), SourcePosting.last_detail_check_at < recheck_before)),
+                       # nicht mehr verfügbare Detailseiten, die die Liste weiterhin nennt: erneut prüfen
+                       and_(SourcePosting.detail_due.is_(True), SourcePosting.gone_confirmations > 0)))
             .order_by(SourcePosting.current_version_id.isnot(None), SourcePosting.last_detail_check_at.asc().nulls_first(), SourcePosting.id)
             .limit(limit)
         )
@@ -377,7 +379,7 @@ class RunEngine:
             run.status, run.status_detail = "partial", "; ".join(r for r in reasons if r)[:500] or "Suchbereich nur teilweise abgearbeitet"
         run.window_end = run.finished_at = datetime.now(UTC)
         run.coverage = {
-            "signals": self.signals[-1] if self.signals else {}, "note": assessment.note,
+            "signals": assessment.signals or (self.signals[-1] if self.signals else {}), "note": assessment.note,
             "list_complete": run.list_complete, "detail_complete": run.detail_complete, "details_pending": run.details_pending,
             "reported_total": run.reported_total, "ids_found": run.ids_found,
             "tasks": {t.partition_key: {"status": t.status, "pages": t.pages_fetched, "ids": t.ids_found, "detail": t.status_detail} for t in tasks},

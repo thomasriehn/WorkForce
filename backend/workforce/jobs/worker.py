@@ -140,6 +140,18 @@ def main() -> None:
     signal.signal(signal.SIGINT, lambda *_: _stop.set())
     base = f"{socket.gethostname()}:{os.getpid()}"
     threads = [threading.Thread(target=_loop, args=(f"{base}:{i}",), name=f"worker-{i}") for i in range(max(1, s.worker_concurrency))]
+
+    def alive() -> None:  # Lebenszeichen unabhängig von lang laufenden Jobs
+        from ..ops import beat
+
+        while not _stop.is_set():
+            try:
+                beat("worker")
+            except Exception:  # noqa: BLE001
+                log.exception("Lebenszeichen fehlgeschlagen")
+            _stop.wait(30)
+
+    threading.Thread(target=alive, daemon=True, name="worker-alive").start()
     for t in threads:
         t.start()
     for t in threads:

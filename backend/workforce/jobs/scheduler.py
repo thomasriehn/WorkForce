@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from ..config import Settings, get_settings
 from ..db import get_engine, session_scope
 from ..models import Job, ScanRun, SearchScope, Source
+from ..ops import beat
 from ..pipeline.run import create_run
 from . import queue
 
@@ -92,6 +93,7 @@ def main() -> None:
                     result = plan(db)
                 if result["runs_created"] or result["jobs"] or result["recovered"]:
                     log.info("Planung", extra=result)
+                beat("scheduler")
             except Exception:  # noqa: BLE001
                 log.exception("Planungsschritt fehlgeschlagen")
             _stop.wait(s.scheduler_tick_seconds)

@@ -19,7 +19,7 @@ from ..search.analytics import _kreis_counts, coverage_at, totals
 from ..search.query import KIND_GROUPS, Filters
 
 
-def compute_day(db: Session, d: date) -> int:
+def compute_day(db: Session, d: date, *, include_synthetic: bool = False) -> int:
     """Berechnet die Aggregate eines Tages neu (ersetzt vorhandene Zeilen des Tages)."""
     db.execute(sql("DELETE FROM daily_aggregate WHERE agg_date = :d"), {"d": d})
     cov = coverage_at(db, d)
@@ -29,19 +29,19 @@ def compute_day(db: Session, d: date) -> int:
     }
     rows = 0
     for kg in KIND_GROUPS:
-        f = Filters(kind_group=kg, as_of=d)
+        f = Filters(kind_group=kg, as_of=d, include_synthetic=include_synthetic)
         counts = _kreis_counts(db, f)
         tot = totals(db, f)
         ev = dict(db.execute(sql(
-            "SELECT e.event_type || CASE WHEN e.baseline THEN ':baseline' ELSE '' END, count(DISTINCT e.merged_posting_id) FROM posting_event e "
+            "SELECT e.event_type || CASE WHEN e.baseline THEN '#baseline' ELSE '' END, count(DISTINCT e.merged_posting_id) FROM posting_event e "
             "JOIN merged_posting mp ON mp.id = e.merged_posting_id JOIN posting_version pv ON pv.id = coalesce(e.version_id, mp.current_version_id) "
-            "WHERE e.effective_date = :d AND NOT mp.is_synthetic AND (CAST(:kinds AS text[]) IS NULL OR pv.kind = ANY(:kinds)) GROUP BY 1"),
-            {"d": d, "kinds": KIND_GROUPS[kg]}).all())
+            "WHERE e.effective_date = :d AND (:syn OR NOT mp.is_synthetic) AND (CAST(:kinds AS text[]) IS NULL OR pv.kind = ANY(:kinds)) GROUP BY 1"),
+            {"d": d, "kinds": KIND_GROUPS[kg], "syn": include_synthetic}).all())
         observed = db.execute(sql(
             "SELECT count(DISTINCT sp.merged_posting_id) FROM observation o JOIN scan_run r ON r.id = o.run_id "
             "JOIN source_posting sp ON sp.id = o.source_posting_id JOIN posting_version pv ON pv.id = sp.current_version_id "
-            "WHERE r.logical_date = :d AND NOT r.is_test AND NOT sp.is_synthetic AND (CAST(:kinds AS text[]) IS NULL OR pv.kind = ANY(:kinds))"),
-            {"d": d, "kinds": KIND_GROUPS[kg]}).scalar_one()
+            "WHERE r.logical_date = :d AND NOT r.is_test AND (:syn OR NOT sp.is_synthetic) AND (CAST(:kinds AS text[]) IS NULL OR pv.kind = ANY(:kinds))"),
+            {"d": d, "kinds": KIND_GROUPS[kg], "syn": include_synthetic}).scalar_one()
         common = dict(agg_date=d, kind_group=kg, basis=basis, dedup_rule_version=DEDUP_RULE_VERSION, classifier_version=CLASSIFIER_VERSION,
                       geo_rule_version=GEO_RULE_VERSION, aggregate_version=AGGREGATE_VERSION)
         payload = [dict(common, region_key="__ALL__", weighted_count=tot["total"], distinct_count=tot["total"],
@@ -60,11 +60,11 @@ def compute_day(db: Session, d: date) -> int:
     return rows
 
 
-def compute_range(db: Session, d_from: date, d_to: date) -> dict[str, Any]:
+def compute_range(db: Session, d_from: date, d_to: date, *, include_synthetic: bool = False) -> dict[str, Any]:
     n = 0
     d = d_from
     while d <= d_to:
-        n += compute_day(db, d)
+        n += compute_day(db, d, include_synthetic=include_synthetic)
         db.commit()
         d += timedelta(days=1)
     return {"from": d_from.isoformat(), "to": d_to.isoformat(), "rows": n}

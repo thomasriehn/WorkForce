@@ -54,7 +54,7 @@ def heartbeat(db: Session, job_id: int) -> None:
 
 
 def finish(db: Session, job_id: int, *, ok: bool, result: dict[str, Any] | None = None, error: str | None = None, retry: bool = True) -> str:
-    job = db.get(Job, job_id)
+    job = db.get(Job, job_id, populate_existing=True)  # Zähler stammen aus SQL-Updates – nie aus dem Sitzungscache
     if job is None:
         return "missing"
     now = datetime.now(UTC)

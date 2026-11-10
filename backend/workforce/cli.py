@@ -208,6 +208,14 @@ def cmd_synthetic(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_healthcheck(args: argparse.Namespace) -> int:
+    from .ops import healthy
+
+    ok = healthy(args.component)
+    print("ok" if ok else f"kein aktuelles Lebenszeichen von {args.component}")
+    return 0 if ok else 1
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     if args.component == "worker":
         from .jobs.worker import main as run
@@ -234,6 +242,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("seed", help="Stammdaten ergänzen (Quellenregister, Wörterbücher)").set_defaults(fn=cmd_seed)
     for comp in ("web", "worker", "scheduler"):
         sub.add_parser(comp, help=f"Prozess „{comp}“ starten").set_defaults(fn=cmd_run, component=comp)
+    hc = sub.add_parser("healthcheck", help="Lebenszeichen von Worker/Scheduler prüfen (für Container-Healthchecks)")
+    hc.add_argument("component", choices=["worker", "scheduler"])
+    hc.set_defaults(fn=cmd_healthcheck)
     u = sub.add_parser("user", help="Benutzer verwalten")
     u.add_argument("action", choices=["create", "list", "reset-password", "disable"])
     u.add_argument("username", nargs="?")

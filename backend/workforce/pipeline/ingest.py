@@ -100,13 +100,18 @@ class Ingestor:
         now = datetime.now(UTC)
         sp, created = self.get_or_create_posting(item)
         if not created:
-            if sp.status not in IN_STOCK:
-                self._reactivate(sp)
-            elif sp.status != "active":
-                sp.status, sp.status_reason, sp.status_changed_at = "active", "erneut beobachtet", now
-            if run.logical_date >= sp.last_seen_date:
-                sp.last_seen_at, sp.last_seen_date = now, run.logical_date
-            sp.gone_confirmations = 0
+            gone_confirmed = sp.gone_confirmations >= self.settings.gone_confirmations and self.adapter.detail_mode != "none"
+            if sp.status not in IN_STOCK and gone_confirmed:
+                # Die Liste nennt die Anzeige noch, die Detailseite war aber wiederholt nicht verfügbar (stärkere Evidenz).
+                # Reaktiviert wird erst nach erfolgreicher Detailprüfung – sonst würde der Status täglich hin- und herspringen.
+                sp.detail_due = True
+            else:
+                if sp.status not in IN_STOCK:
+                    self._reactivate(sp)
+                elif sp.status != "active":
+                    sp.status, sp.status_reason, sp.status_changed_at = "active", "erneut beobachtet", now
+                if run.logical_date >= sp.last_seen_date:
+                    sp.last_seen_at, sp.last_seen_date = now, run.logical_date
         if item.lastmod and item.lastmod != sp.list_hash and self.adapter.detail_mode != "none":
             # geändertes lastmod der Sitemap = Änderungssignal => Detailprüfung fällig
             if sp.list_hash is not None:
@@ -303,13 +308,23 @@ class Ingestor:
         dedup.assign_cluster(self.db, sp, new_v, run_id=run.id, logical_date=run.logical_date)
         return new_v
 
+    def _detail_ok(self, sp: SourcePosting) -> None:
+        """Detailseite erreichbar: frühere Nichtverfügbarkeit ist widerlegt."""
+        sp.gone_confirmations, sp.gone_last_date = 0, None
+        if sp.status not in IN_STOCK:
+            self._reactivate(sp)
+            now = datetime.now(UTC)
+            sp.last_seen_at, sp.last_seen_date = now, self.run.logical_date
+
     def ingest_detail(self, sp: SourcePosting, p: ParsedPosting) -> PostingVersion | None:
+        self._detail_ok(sp)
         v = self.apply_parsed(sp, p)
         self._record_observation(sp, seen_list=False, seen_detail=True)
         return v
 
     def detail_unchanged(self, sp: SourcePosting) -> None:
         """Detailseite per bedingtem Abruf unverändert (HTTP 304)."""
+        self._detail_ok(sp)
         sp.last_detail_check_at = datetime.now(UTC)
         sp.detail_due = False
         self._record_observation(sp, seen_list=False, seen_detail=True)

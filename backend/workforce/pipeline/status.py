@@ -56,7 +56,9 @@ def leave_stock(db: Session, sp: SourcePosting, status: str, reason: str, logica
     sp.status, sp.status_reason, sp.status_changed_at = status, reason, now
     period = db.execute(select(ActivityPeriod).where(ActivityPeriod.source_posting_id == sp.id, ActivityPeriod.end_date.is_(None))).scalar_one_or_none()
     if period is not None:
-        period.end_date = max(end_date, period.start_date)
+        # Am Tag der Feststellung zählt die Anzeige nicht mehr zum Bestand: so stimmen der aktuelle Bestand
+        # (Status) und der Stichtagsbestand von heute (Zeiträume) stets überein.
+        period.end_date = min(end_date, logical_date - timedelta(days=1))
         period.end_reason = status
     db.flush()
     if sp.merged_posting_id is None:

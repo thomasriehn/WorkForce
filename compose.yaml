@@ -1,0 +1,103 @@
+# WorkForce – Docker Compose (Zielumgebung: dedizierter Linux-LXC unter Proxmox, siehe docs/proxmox-lxc.md)
+# Veröffentlicht wird ausschließlich der Webzugang. PostgreSQL bleibt im internen Docker-Netz.
+name: workforce
+
+x-app: &app
+  image: workforce:0.1.0
+  build:
+    context: .
+    args:
+      INSTALL_BROWSER: ${WF_INSTALL_BROWSER:-1}
+  restart: unless-stopped
+  env_file: [.env]
+  environment: &app-env
+    WF_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-workforce}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD in .env setzen}@db:5432/${POSTGRES_DB:-workforce}
+    WF_ENV: production
+    WF_DATA_DIR: /data
+    TZ: UTC
+  volumes:
+    - app-data:/data
+  networks: [backend, egress]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+
+services:
+  db:
+    # PostgreSQL 17 + PostGIS 3.5 (Tag + Digest gepinnt)
+    image: postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-workforce}
+      POSTGRES_USER: ${POSTGRES_USER:-workforce}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD in .env setzen}
+      TZ: UTC
+    command: ["postgres", "-c", "shared_buffers=${PG_SHARED_BUFFERS:-512MB}", "-c", "effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-1536MB}",
+              "-c", "work_mem=${PG_WORK_MEM:-32MB}", "-c", "maintenance_work_mem=256MB", "-c", "timezone=UTC"]
+    shm_size: 256mb
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks: [backend]          # kein veröffentlichter Port, kein Zugang nach außen
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    security_opt: ["no-new-privileges:true"]
+
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["migrate"]         # Alembic-Migrationen + Stammdaten (idempotent, keine Demo-Daten)
+    networks: [backend]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    <<: *app
+    command: ["web"]
+    ports:
+      # Standard: nur lokal erreichbar – davor gehört ein Reverse Proxy mit TLS (deploy/Caddyfile.example)
+      - "${WF_BIND_ADDRESS:-127.0.0.1}:${WF_HTTP_PORT:-8080}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    <<: *app
+    command: ["worker"]
+    shm_size: 512mb              # Chromium (Statistik-Exporte)
+    healthcheck:
+      test: ["CMD", "workforce", "healthcheck", "worker"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+
+  scheduler:
+    <<: *app
+    command: ["scheduler"]       # genau eine Instanz (zusätzlich per Advisory-Sperre abgesichert)
+    deploy:
+      replicas: 1
+    healthcheck:
+      test: ["CMD", "workforce", "healthcheck", "scheduler"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+
+networks:
+  backend:
+    internal: true               # Datenbanknetz ohne Route nach außen
+  egress: {}
+
+volumes:
+  db-data:
+  app-data:

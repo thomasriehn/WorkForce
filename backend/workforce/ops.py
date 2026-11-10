@@ -42,3 +42,24 @@ def check_stale_sources(db: Session) -> int:
         elif open_warning is not None:
             open_warning.resolved_at = datetime.now(UTC)
     return n
+
+
+def beat(component: str) -> None:
+    """Lebenszeichen eines Prozesses (für Container-Healthchecks)."""
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    from .db import session_scope
+    from .models import AppState
+
+    now = datetime.now(UTC)
+    with session_scope() as db:
+        db.execute(pg_insert(AppState).values(key=f"heartbeat:{component}", value={"at": now.isoformat()}, updated_at=now)
+                   .on_conflict_do_update(index_elements=["key"], set_={"value": {"at": now.isoformat()}, "updated_at": now}))
+
+
+def healthy(component: str, max_age_seconds: int = 180) -> bool:
+    from .db import session_scope
+
+    with session_scope() as db:
+        at = db.execute(sql("SELECT updated_at FROM app_state WHERE key = :k"), {"k": f"heartbeat:{component}"}).scalar_one_or_none()
+    return at is not None and (datetime.now(UTC) - at).total_seconds() <= max_age_seconds

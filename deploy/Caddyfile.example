@@ -1,0 +1,33 @@
+# Beispiel: Caddy als Reverse Proxy mit TLS vor WorkForce (läuft auf dem LXC oder einem vorgelagerten Proxy-Host).
+# WorkForce selbst lauscht nur auf 127.0.0.1:8080 (WF_BIND_ADDRESS/WF_HTTP_PORT in .env).
+# Bei einem Proxy auf einem ANDEREN Host: WF_BIND_ADDRESS auf die interne LXC-Adresse setzen und den Port per Firewall
+# ausschließlich für den Proxy-Host freigeben.
+
+workforce.example.org {
+	encode zstd gzip
+
+	# TLS: Caddy bezieht Zertifikate automatisch (ACME). Im rein internen Netz stattdessen:
+	#   tls internal            (eigene CA, Stammzertifikat auf den Clients verteilen)
+	#   tls /pfad/cert.pem /pfad/key.pem
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# Anmeldung zusätzlich drosseln, wenn das Plugin caddy-ratelimit verfügbar ist (optional).
+
+	reverse_proxy 127.0.0.1:8080 {
+		header_up X-Forwarded-Proto {scheme}
+		transport http {
+			read_timeout 120s
+		}
+	}
+
+	log {
+		output file /var/log/caddy/workforce-access.log {
+			roll_size 20MiB
+			roll_keep 10
+		}
+	}
+}

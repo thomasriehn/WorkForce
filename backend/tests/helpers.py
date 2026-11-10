@@ -95,3 +95,36 @@ def run_scan(db: Any, scope: SearchScope, day: date, adapter: SourceAdapter | No
     finally:
         db.expire_all()
     return db.get(ScanRun, run.id)
+
+
+def make_regions(db: Any) -> None:
+    """Drei synthetische Kreise (Quadrate) in zwei erfundenen Ländern samt Ortsreferenz. Schlüssel 91xxx/92xxx existieren real nicht."""
+    from datetime import date as _d
+
+    from sqlalchemy import text as sql
+
+    from workforce.normalize.text import fold
+
+    stand = _d(2025, 12, 31)
+
+    def square(x: float, y: float) -> str:
+        return f"SRID=4326;MULTIPOLYGON((({x} {y},{x + 1} {y},{x + 1} {y + 1},{x} {y + 1},{x} {y})))"
+
+    for key, name, level, parent, geom in (
+        ("91", "Testland Nord (synthetisch)", "state", None, None), ("92", "Testland Süd (synthetisch)", "state", None, None),
+        ("91001", "Musterstadt", "district", "91", square(10, 50)), ("91002", "Beispielkreis", "district", "91", square(11, 50)),
+        ("92001", "Südkreis", "district", "92", square(10, 48)),
+    ):
+        db.execute(sql("INSERT INTO region (country, level, key, name, type_label, parent_key, gebietsstand, is_current, geom, geom_simple, centroid) "
+                       "VALUES ('DE', :l, :k, :n, :t, :p, :s, true, CAST(:g AS geometry), CAST(:g AS geometry), ST_PointOnSurface(CAST(:g AS geometry)))"),
+                   {"l": level, "k": key, "n": name, "t": "Landkreis" if level == "district" else "Land", "p": parent, "s": stand, "g": geom})
+    for name, ags, kreis, plz, pop, lat, lon in (
+        ("Musterstadt", "91001000", "91001", "91010", 250000, 50.5, 10.5), ("Beispielhausen", "91002001", "91002", "91200", 30000, 50.5, 11.5),
+        ("Neustadt", "91002002", "91002", "91250", 12000, 50.4, 11.4), ("Neustadt", "92001001", "92001", "92100", 15000, 48.5, 10.5),
+        ("Südheim", "92001002", "92001", "92150", 8000, 48.4, 10.4),
+    ):
+        db.execute(sql("INSERT INTO geo_place (country, name, name_norm, kind, ags, kreis_key, state_key, postal_code, population, lat, lon, gebietsstand) "
+                       "VALUES ('DE', :n, :nn, 'municipality', :a, :k, :s, :p, :pop, :lat, :lon, :st)"),
+                   {"n": name, "nn": fold(name), "a": ags, "k": kreis, "s": kreis[:2], "p": plz, "pop": pop, "lat": lat, "lon": lon, "st": stand})
+        db.execute(sql("INSERT INTO postal_code (country, plz, ags, kreis_key, place_name) VALUES ('DE', :p, :a, :k, :n)"), {"p": plz, "a": ags, "k": kreis, "n": name})
+    db.commit()
