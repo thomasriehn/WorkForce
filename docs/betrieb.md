@@ -54,8 +54,17 @@ Reihenfolge einhalten – die Ortszuordnung braucht Grenzen und Ortsreferenz.
 | 2 | `gv_isys` Gemeindeverzeichnis (PLZ des Verwaltungssitzes, Bevölkerung) | Statistisches Bundesamt | automatisch |
 | 3 | `kldb2010` Klassifikation der Berufe 2010, Fassung 2020 | Bundesagentur für Arbeit | manuell (siehe unten) |
 | 4 | `bevoelkerung_kreise_alter` Bevölkerung nach Kreisen und Altersgruppen (GENESIS 12411-0017) | Statistisches Bundesamt, Datenlizenz Deutschland – Namensnennung 2.0 | automatisch über die öffentliche Oberfläche |
-| 5 | `ba_arbeitslose_kreise` Arbeitslose, Quoten, Arbeitsuchende | Statistik der BA | manuell (siehe unten) |
-| 6 | `ba_berufe` Arbeitsmarkt nach Berufen (bis Bundeslandebene) | Statistik der BA | manuell (siehe unten) |
+| 5 | `ba_arbeitslose_kreise` Arbeitslose und Arbeitslosenquoten je Kreis (monatlich) | Statistik der BA | manuell (siehe unten) |
+| 6 | `ba_berufe` Arbeitsmarkt nach Berufen: Arbeitslose, Arbeitsuchende, gemeldete Stellen (Deutschland, West/Ost, Länder) | Statistik der BA | manuell (siehe unten) |
+
+**Arbeitsuchende auf Kreisebene** bietet die geprüfte Standardveröffentlichung nicht an; berufsbezogene Arbeitsuchende gibt es
+bis zur Bundeslandebene. Kreiswerte werden nicht aus Landeswerten geschätzt.
+
+**Gebietsstände:** Kreisgrenzen und Bevölkerung haben den Stand 31.12.2025 (400 Kreise). Die Monatsdaten der BA und das
+Gemeindeverzeichnis führen 2026 bereits 401 Kreise, weil Hanau (Schlüssel `06415`) seit 01.01.2026 kreisfrei ist. Werte zu
+Schlüsseln ohne Grenze im geladenen Gebietsstand werden importiert und im Importergebnis als unbekannte Gebietsschlüssel
+gemeldet, aber nicht umgerechnet; auf der Karte erscheinen sie erst mit dem nächsten VG250-Stand. Werte des
+Main-Kinzig-Kreises sind über diesen Wechsel hinweg nicht vergleichbar.
 
 Übersicht der Datensätze, ihrer Fundstellen und des letzten Stands:
 

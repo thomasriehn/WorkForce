@@ -222,4 +222,9 @@ zugeordneten Arbeitsorten.
   „unklar“ existiert aus diesem Grund.
 - **Ortszuordnung:** Die PLZ-Referenz kennt je Gemeinde nur die PLZ des Verwaltungssitzes. Mehrdeutige Ortsnamen
   ohne weitere Angabe bleiben ungeklärt.
+- **Gebietsreformen:** Jede Region und jeder Statistikwert trägt seinen Gebietsstand. Unterschiedliche Stände werden nicht
+  stillschweigend umgerechnet. Aktuelles Beispiel: Hanau ist seit 01.01.2026 kreisfrei; Grenzen und Bevölkerung (Stand
+  31.12.2025) kennen den Kreis noch nicht, die Monatsdaten der BA schon.
+- **Arbeitsuchende** liegen aus der geprüften Standardveröffentlichung nur berufsbezogen bis zur Bundeslandebene vor, nicht je
+  Kreis.
 - **Geringe Fallzahlen** sind in Karte und Tabellen gekennzeichnet (`WF_SMALL_COUNT_THRESHOLD`, Standard 5).
