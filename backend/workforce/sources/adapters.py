@@ -346,6 +346,8 @@ class KarriereBundAdapter(SourceAdapter):
         p = parse_job_page(result.text, source_key=item_key, url=result.url)
         if p.occupation_label:  # hier: Tätigkeitsbereich des Portals, keine Berufsbenennung
             p.occupation_field, p.occupation_label = p.occupation_label, None
+        if p.reference == item_key:  # Portal-ID, keine Stellenreferenz des Arbeitgebers
+            p.reference = None
         return p
 
 

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..config import CLASSIFIER_VERSION
-from .text import short_evidence
+from .text import sanitize_evidence, short_evidence
 
 
 @dataclass
@@ -261,7 +261,7 @@ def extract_features(
                 conf = 0.9 if pol in ("required", "negated") and section in ("req", "unknown") else 0.7
                 if pol == "unclear":
                     conf = 0.5
-                ev = short_evidence(description, m.start(), m.end()) if store_evidence else None
+                ev = sanitize_evidence(short_evidence(description, m.start(), m.end())) if store_evidence else None
                 consider(ExtractedFeature(key, ftype, label, pol, "rule_text", conf, ev, detail))
     for hint_key, hint_val in (hints or {}).items():
         blob = prepare(str(hint_val))

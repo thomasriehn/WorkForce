@@ -169,3 +169,22 @@ def test_new_only_scope_never_counts_misses_but_honours_announced_end(db):
     run_scan(db, scope, D0 + timedelta(days=20), FakeAdapter([[posting("neu20", title="Neu 20")]]))
     db.expire_all()
     assert db.execute(select(SourcePosting.status).where(SourcePosting.source_key == "f2")).scalar_one() == "stale"
+
+
+def test_no_contact_data_is_persisted(db):
+    """Ansprechpartner- und Kontaktdaten gehören nicht zum Erfassungsumfang – auch nicht über Belegauszüge."""
+    from sqlalchemy import text as sql
+
+    _, scope = make_source(db)
+    text = ("Ihr Profil\n- Abgeschlossenes Studium (Bachelor) erforderlich, Nachweise an bewerbung@example.invalid oder Tel. 030 12345678\n"
+            "- Sehr gute Englischkenntnisse erforderlich\n"
+            "Für Rückfragen zur Berufserfahrung steht Ihnen Frau Erika Mustermann (erika.mustermann@example.invalid, +49 30 259359220) zur Verfügung.")
+    run_scan(db, scope, D0, FakeAdapter([[posting("c1", "Referent (m/w/d)", "Behörde Test", description=text)]]))
+    dump = " ".join(str(r) for r in db.execute(sql(
+        "SELECT pv.title, pv.excerpts::text, pv.quality::text, pv.search_a, pv.search_b, pv.search_c, coalesce(string_agg(pf.evidence || ' ' || coalesce(pf.detail, ''), ' | '), '') "
+        "FROM posting_version pv LEFT JOIN posting_feature pf ON pf.version_id = pv.id GROUP BY pv.id")).all())
+    for secret in ("example.invalid", "12345678", "259359220", "Mustermann", "mustermann"):
+        assert secret not in dump, secret
+    v = db.execute(select(PostingVersion)).scalar_one()
+    assert {"qual:bachelor", "lang:en", "exp:berufserfahrung"} <= set(v.feature_keys)  # die Merkmale selbst bleiben erhalten
+    assert any("Bachelor" in e and "[…]" in e for e in v.excerpts)

@@ -252,3 +252,30 @@ def test_karriere_bund_list_parser_pagination():
     items, total, has_next = KarriereBundAdapter().parse_list(html, "https://karriere.bund.de/arbeiten-bei-uns/stellenangebote-bei-uns")
     assert total == 1912 and has_next and [i.source_key for i in items] == ["25913788", "25913999"]
     assert items[0].url == "https://karriere.bund.de/arbeiten-bei-uns/stellenangebote/sachbearbeitung-test/25913788"
+
+
+def test_robots_transient_failure_is_retried_and_not_cached_for_a_day():
+    """Ein kurzer Verbindungsabbruch bei robots.txt sperrt die Quelle nicht dauerhaft; dauerhafte Störung sperrt nur diesen Lauf."""
+    state = {"robots_calls": 0, "fail": 2}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path == "/robots.txt":
+            state["robots_calls"] += 1
+            if state["robots_calls"] <= state["fail"]:
+                raise httpx.ConnectError("Connection reset by peer")
+            return httpx.Response(200, text=ROBOTS_OK)
+        return httpx.Response(200, text="inhalt")
+
+    f, sleeps = fetcher(handler)
+    assert f.get("https://portal.example/a").text == "inhalt" and state["robots_calls"] == 3 and len(sleeps) >= 2  # mit Backoff wiederholt
+    state.update(robots_calls=0, fail=99)
+    f2, _ = fetcher(handler)
+    with pytest.raises(RobotsDisallowed):
+        f2.get("https://portal.example/a")
+    calls = state["robots_calls"]
+    with pytest.raises(RobotsDisallowed):  # innerhalb des Laufs nicht erneut hämmern
+        f2.get("https://portal.example/b")
+    assert state["robots_calls"] == calls
+    state.update(robots_calls=0, fail=0)
+    f3, _ = fetcher(handler)  # nächster Lauf: robots.txt wieder erreichbar ⇒ Abruf erlaubt (Fehlschlag wurde nicht gespeichert)
+    assert f3.get("https://portal.example/a").text == "inhalt"

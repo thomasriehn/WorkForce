@@ -146,3 +146,18 @@ def short_evidence(text: str, start: int, end: int, width: int = 180) -> str:
         rel = max(0, start - left - width // 3)
         snippet = ("…" if rel > 0 else "") + snippet[rel : rel + width].strip() + "…"
     return snippet
+
+
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_PHONE = re.compile(r"(?:(?:\+49|0049)[\s()/-]*|\b0)\d{2,5}[\s/()-]+\d[\d\s/-]{3,}\d")
+_CONTACT_LINE = re.compile(r"ansprechpartner|ansprechperson|ansprechpersonen|rückfragen|auskünfte\s+erteilt|auskunft\s+erteilt|fragen\s+beantwortet|kontakt\s*:|steht\s+ihnen\s+(?:frau|herr)", re.I)
+
+
+def sanitize_evidence(snippet: str | None) -> str | None:
+    """Belegauszüge enthalten keine Ansprechpartner-/Kontaktdaten: Kontaktzeilen entfallen, Adressen/Nummern werden entfernt."""
+    if not snippet:
+        return None
+    if _CONTACT_LINE.search(snippet):
+        return None
+    cleaned = _PHONE.sub("[…]", _EMAIL.sub("[…]", snippet))
+    return cleaned.strip() or None

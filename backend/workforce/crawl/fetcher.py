@@ -14,6 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 import httpx
@@ -200,6 +201,7 @@ class Fetcher:
         self._cache_get = cache_get
         self._cache_put = cache_put
         self.requests_made = 0
+        self._robots_failed: dict[str, float] = {}
         self.agent_token = self.settings.crawler_name
         self._client = httpx.Client(
             transport=transport,
@@ -228,21 +230,41 @@ class Fetcher:
         pol = self.robots.get(host, timedelta(hours=self.settings.robots_cache_hours))
         if pol is not None:
             return pol
+        failed_until = self._robots_failed.get(host)
+        if failed_until is not None and self._clock() < failed_until:
+            return RobotsPolicy(None, None)
         robots_url = f"https://{host}/robots.txt"
         status: int | None = None
         body: str | None = None
-        try:
-            resp = self._raw_get(robots_url, {}, max_redirects=3)
-            status = resp.status_code
-            body = resp.text if resp.status_code == 200 else None
-            if status == 200 and looks_like_challenge(status, resp.content):
-                status, body = 403, None  # Challenge statt robots.txt => keine Freigabe ableitbar
-        except (httpx.HTTPError, TargetForbidden) as exc:
-            log.warning("robots.txt nicht abrufbar", extra={"host": host, "error": repr(exc)})
-            status = None
+        attempt = 0
+        while True:  # vorübergehende Störungen (Verbindungsabbruch, 5xx) mit Backoff wiederholen
+            attempt += 1
+            try:
+                resp = self._raw_get(robots_url, {}, max_redirects=3)
+                status = resp.status_code
+                body = resp.text if resp.status_code == 200 else None
+                if status == 200 and looks_like_challenge(status, resp.content):
+                    status, body = 403, None  # Challenge statt robots.txt => keine Freigabe ableitbar
+            except TargetForbidden as exc:
+                log.warning("robots.txt nicht abrufbar", extra={"host": host, "error": repr(exc)})
+                status = None
+                break
+            except httpx.HTTPError as exc:
+                log.warning("robots.txt nicht abrufbar", extra={"host": host, "error": repr(exc), "attempt": attempt})
+                status = None
+            if status is not None and status < 500 and status != 429:
+                break
+            if attempt > self.settings.http_max_retries:
+                break
+            self._backoff(attempt, None)
         # 401/403 auf robots.txt werten wir – strenger als RFC 9309 – als Sperrsignal.
         if status in (401, 403):
             status = 503
+        if status is None or status >= 500 or status == 429:
+            # Nicht erreichbar => für diesen Lauf vollständig gesperrt (RFC 9309), aber nicht einen Tag lang zwischenspeichern:
+            # der nächste Lauf prüft erneut.
+            self._robots_failed[host] = self._clock() + 600.0
+            return RobotsPolicy(None, status)
         return self.robots.put(host, status, body)
 
     def _effective_interval(self, pol: RobotsPolicy | None) -> float:
@@ -346,3 +368,111 @@ class Fetcher:
             delay = max(delay, retry_after)
         log.info("Backoff", extra={"seconds": round(delay, 1), "attempt": attempt})
         self._sleep(delay)
+
+    # ------------------------------------------------------------------------------------------
+    def _raw_download(self, url: str, headers: dict[str, str], dest: Path, max_bytes: int,
+                      max_redirects: int = 5) -> tuple[httpx.Response, bytes, int]:
+        """Ein GET mit geprüften Weiterleitungen; ein 200er-Inhalt wird gestreamt nach ``dest`` geschrieben.
+
+        Liefert ``(Antwort, Anfang des Inhalts, Größe)``. Andere Statuscodes schreiben keine Datei.
+        """
+        current = self._check(url)
+        for _ in range(max_redirects + 1):
+            host = urlsplit(current).netloc
+            head = b""
+            size = 0
+            with _PACER.host_lock(host):
+                _PACER.wait(host, self.interval, self._sleep, self._clock)
+                try:
+                    with self._client.stream("GET", current, headers=headers) as resp:
+                        if resp.status_code == 200:
+                            declared = resp.headers.get("content-length", "")
+                            if declared.isdigit() and int(declared) > max_bytes:
+                                raise FetchError(f"Datei überschreitet die maximale Größe ({declared} > {max_bytes} Bytes)", url=current)
+                            with dest.open("wb") as out:
+                                for chunk in resp.iter_bytes():
+                                    size += len(chunk)
+                                    if size > max_bytes:
+                                        raise FetchError(f"Datei überschreitet die maximale Größe von {max_bytes} Bytes", url=current)
+                                    if len(head) < 6000:
+                                        head += chunk[: 6000 - len(head)]
+                                    out.write(chunk)
+                        else:
+                            for chunk in resp.iter_bytes():
+                                if len(head) < 6000:
+                                    head += chunk[: 6000 - len(head)]
+                finally:
+                    _PACER.mark(host, self._clock)
+                    self.requests_made += 1
+            if resp.status_code in (301, 302, 303, 307, 308) and "location" in resp.headers:
+                current = self._check(urljoin(current, resp.headers["location"]))
+                continue
+            return resp, head, size
+        raise FetchError("zu viele Weiterleitungen", url=url)
+
+    def download(self, url: str, dest_path: Path | str, max_bytes: int | None = None, *, if_none_match: str | None = None,
+                 if_modified_since: str | None = None, check_robots: bool = True) -> FetchResult:
+        """Lädt eine (große) Datei gestreamt nach ``dest_path`` – mit denselben Prüfungen wie :meth:`get`.
+
+        robots.txt, Abrufabstand je Host, geprüfte Weiterleitungen, Backoff/``Retry-After`` und Sperrsignale gelten
+        unverändert. ``if_none_match``/``if_modified_since`` erlauben einen bedingten Abruf (304 ⇒ ``not_modified``,
+        es wird nichts geschrieben). Die Datei erscheint erst nach vollständigem Abruf unter ``dest_path``; der
+        Inhalt steht nicht in ``FetchResult.content``. Andere Statuscodes als 200/304 werden ohne Datei geliefert.
+        """
+        s = self.settings
+        limit = int(max_bytes if max_bytes is not None else s.stats_max_download_bytes)
+        dest = Path(dest_path)
+        part = dest.with_name(dest.name + ".teil")
+        url = self._check(url)
+        pol: RobotsPolicy | None = None
+        if check_robots:
+            pol = self._robots_for(url)
+            parts = urlsplit(url)
+            target = parts.path + (f"?{parts.query}" if parts.query else "")
+            if not pol.allowed(target, self.agent_token):
+                raise RobotsDisallowed("laut robots.txt nicht erlaubt (oder robots.txt nicht verfügbar)", url=url)
+        headers: dict[str, str] = {"Accept": "*/*"}
+        if if_none_match:
+            headers["If-None-Match"] = if_none_match
+        if if_modified_since:
+            headers["If-Modified-Since"] = if_modified_since
+        saved_interval = self.interval
+        self.interval = self._effective_interval(pol)
+        try:
+            attempt = 0
+            while True:
+                attempt += 1
+                try:
+                    resp, head, size = self._raw_download(url, headers, part, limit)
+                except (httpx.TimeoutException, httpx.TransportError) as exc:
+                    if attempt > s.http_max_retries:
+                        raise TransientError(f"Netzwerkfehler/Timeout: {exc!r}", url=url) from exc
+                    self._backoff(attempt, None)
+                    continue
+                status = resp.status_code
+                hdrs = {k.lower(): v for k, v in resp.headers.items()}
+                if status == 304:
+                    return FetchResult(url=url, final_url=str(resp.url), status=304, not_modified=True, headers=hdrs)
+                if looks_like_challenge(status, head) and (status != 200 or "html" in hdrs.get("content-type", "")):
+                    raise BlockedError("Bot-Schutz/CAPTCHA erkannt – kein Umgehungsversuch", url=url, status=status)
+                if status in (401, 403):
+                    raise BlockedError(f"HTTP {status}", url=url, status=status)
+                if status == 429 or 500 <= status < 600:
+                    retry_after = parse_retry_after(resp.headers.get("retry-after"))
+                    if retry_after is not None and retry_after > s.retry_after_max_seconds:
+                        raise BlockedError(
+                            f"HTTP {status} mit Retry-After {int(retry_after)} s (über Grenze)", url=url, status=status
+                        )
+                    if attempt > s.http_max_retries:
+                        if status == 429:
+                            raise BlockedError("HTTP 429 trotz Backoff", url=url, status=status)
+                        raise TransientError(f"HTTP {status} nach {attempt} Versuchen", url=url, status=status)
+                    self._backoff(attempt, retry_after)
+                    continue
+                if status == 200:
+                    part.replace(dest)
+                    hdrs["x-wf-bytes"] = str(size)
+                return FetchResult(url=url, final_url=str(resp.url), status=status, headers=hdrs)
+        finally:
+            self.interval = saved_interval
+            part.unlink(missing_ok=True)
