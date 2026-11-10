@@ -188,3 +188,103 @@ def test_no_contact_data_is_persisted(db):
     v = db.execute(select(PostingVersion)).scalar_one()
     assert {"qual:bachelor", "lang:en", "exp:berufserfahrung"} <= set(v.feature_keys)  # die Merkmale selbst bleiben erhalten
     assert any("Bachelor" in e and "[…]" in e for e in v.excerpts)
+
+
+def test_interrupted_run_resumes_from_checkpoint_without_duplicates(db):
+    """Abnahme 3: unterbrochene Läufe (Pause, Absturz, Seitenlimit) werden kontrolliert am Checkpoint fortgesetzt."""
+    from sqlalchemy import text as sql
+
+    from workforce import db as wf_db
+    from workforce.config import get_settings
+    from workforce.models import ScanTask
+    from workforce.pipeline.run import execute_run, request_control
+
+    from .helpers import fetcher_factory
+
+    _, scope = make_source(db)
+    pages = [[posting(f"r{p}{i}", f"Stelle {p}-{i}") for i in range(3)] for p in range(4)]
+    today = date.today()
+    fetched: list[int] = []
+
+    def pause_after_second_page(i: int) -> None:
+        fetched.append(i)
+        if i == 1:  # Administrator fordert während des Laufs eine Pause an
+            with wf_db.session_scope() as s:
+                s.execute(sql("UPDATE scan_run SET control = 'pause'"))
+
+    run = run_scan(db, scope, today, FakeAdapter(pages, behaviour=pause_after_second_page))
+    assert run.status == "paused" and run.pages_fetched == 2 and count(db, SourcePosting) == 6
+    task = db.execute(select(ScanTask)).scalar_one()
+    assert task.checkpoint["page"] == 2  # Checkpoint zeigt auf die nächste Seite
+    # Fortsetzung: nur die fehlenden Seiten werden gelesen
+    request_control(db, run, "resume")
+    db.commit()
+    fetched.clear()
+    execute_run(run.id, settings=get_settings(), fetcher_factory=fetcher_factory(), adapter=FakeAdapter(pages, behaviour=fetched.append))
+    db.expire_all()
+    run = db.get(ScanRun, run.id)
+    assert fetched == [2, 3] and run.status == "complete" and run.pages_fetched == 4 and run.attempts == 2
+    assert (count(db, SourcePosting), count(db, PostingVersion), count(db, Observation), count(db, ScanRun)) == (12, 12, 12, 1)
+
+    # Absturz mitten im Lauf: Status bleibt „running“; die erneute Ausführung setzt am Checkpoint fort
+    _, scope2 = make_source(db, "zweite", domain="z.example")
+    pages2 = [[posting(f"z{p}{i}", f"Z {p}-{i}", domain="z.example") for i in range(2)] for p in range(3)]
+
+    class Crash(RuntimeError):
+        pass
+
+    def crash_on_third(i: int) -> None:
+        if i == 2:
+            raise Crash("Prozess beendet")
+
+    with pytest.raises(Crash):
+        run_scan(db, scope2, today, FakeAdapter(pages2, behaviour=crash_on_third))
+    db.expire_all()
+    run2 = db.execute(select(ScanRun).where(ScanRun.scope_id == scope2.id)).scalar_one()
+    assert run2.status == "running" and run2.pages_fetched == 2
+    again: list[int] = []
+    execute_run(run2.id, settings=get_settings(), fetcher_factory=fetcher_factory(), adapter=FakeAdapter(pages2, behaviour=again.append))
+    db.expire_all()
+    assert again == [2] and db.get(ScanRun, run2.id).status == "complete"
+    assert count(db, Observation, Observation.run_id == run2.id) == 6
+
+    # Seitenlimit ⇒ partiell; kontrollierte Wiederholung am selben Tag vervollständigt denselben logischen Lauf
+    _, scope3 = make_source(db, "dritte", domain="d.example")
+    pages3 = [[posting(f"d{p}{i}", f"D {p}-{i}", domain="d.example") for i in range(2)] for p in range(3)]
+    run3 = run_scan(db, scope3, today, FakeAdapter(pages3), page_limit=1)
+    assert run3.status == "partial" and "Seitenlimit" in run3.status_detail
+    run3.page_limit = None
+    request_control(db, run3, "retry")
+    db.commit()
+    execute_run(run3.id, settings=get_settings(), fetcher_factory=fetcher_factory(), adapter=FakeAdapter(pages3))
+    db.expire_all()
+    run3 = db.get(ScanRun, run3.id)
+    assert run3.status == "complete" and count(db, Observation, Observation.run_id == run3.id) == 6 and count(db, ScanRun, ScanRun.scope_id == scope3.id) == 1
+    # abgeschlossene Läufe werden nicht erneut ausgeführt
+    assert execute_run(run3.id, settings=get_settings(), fetcher_factory=fetcher_factory(), adapter=FakeAdapter(pages3, behaviour=lambda i: (_ for _ in ()).throw(AssertionError("darf nicht laufen")))) == "complete"
+
+
+def test_overlapping_runs_of_same_source_are_refused(db):
+    """Schutz vor überlappenden Läufen derselben Quelle und Konfiguration."""
+    from workforce.config import get_settings
+    from workforce.pipeline.run import RunRefused, create_run, execute_run
+
+    from .helpers import fetcher_factory
+
+    _, scope = make_source(db)
+    run, _ = create_run(db, scope, D0, "manual")
+    test_run, _ = create_run(db, scope, D0, "manual", page_limit=1, is_test=True)
+    db.commit()
+    outcome: list[str] = []
+
+    def nested(i: int) -> None:  # während der erste Lauf arbeitet, startet ein zweiter für dieselbe Quelle/Konfiguration
+        try:
+            execute_run(test_run.id, settings=get_settings(), fetcher_factory=fetcher_factory(), adapter=FakeAdapter([[posting("n1")]]))
+            outcome.append("lief")
+        except RunRefused as exc:
+            outcome.append(str(exc))
+
+    execute_run(run.id, settings=get_settings(), fetcher_factory=fetcher_factory(), adapter=FakeAdapter([[posting("a1")]], behaviour=nested))
+    assert outcome and "läuft bereits" in outcome[0]
+    db.expire_all()
+    assert db.get(ScanRun, run.id).status == "complete" and count(db, SourcePosting) == 1
