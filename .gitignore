@@ -1,0 +1,30 @@
+# Secrets und lokale Konfiguration – niemals einchecken
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/screenshots/
+
+# Laufzeitdaten, Downloads, Sicherungen
+/data/
+/backups/
+*.dump
+*.sql.gz
+
+# Editor/OS
+.idea/
+.vscode/
+.DS_Store

@@ -1,0 +1,45 @@
+[project]
+name = "workforce"
+version = "0.1.0"
+description = "WorkForce – Beobachtung öffentlich ausgeschriebener Stellenanzeigen mit regionaler Auswertung"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlalchemy>=2.0",
+    "alembic",
+    "psycopg[binary]",
+    "geoalchemy2",
+    "pydantic-settings",
+    "httpx",
+    "beautifulsoup4",
+    "lxml",
+    "argon2-cffi",
+    "openpyxl",
+    "python-multipart",
+    "playwright",
+]
+
+[dependency-groups]
+dev = ["pytest", "pytest-timeout", "ruff"]
+
+[project.scripts]
+workforce = "workforce.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["workforce"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 120
+markers = [
+    "live: kontrollierte Live-Smoke-Tests gegen echte Webseiten (nur mit WF_LIVE_TESTS=1)",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
