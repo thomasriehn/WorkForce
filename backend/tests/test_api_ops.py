@@ -164,3 +164,72 @@ def test_job_queue_locking_retry_and_recovery(db):
     assert db.get(Job, b.id).status == "queued" and "verwaist" in db.get(Job, b.id).last_error
     queue.finish(db, c.id, ok=True, result={"rows": 3})
     assert db.get(Job, c.id).status == "done"
+
+
+def test_worker_processes_jobs_and_maintenance_keeps_history(db):
+    """Worker arbeitet Queue-Jobs ab; die Aufbewahrung löscht nur technische Protokolle, nie fachliche Historie."""
+    from sqlalchemy import text as sql
+
+    from workforce.jobs.worker import process_one
+    from workforce.models import Observation, OpsWarning, PostingVersion, ScanError
+
+    make_regions(db)
+    src, scope = make_source(db)
+    old = date.today() - timedelta(days=400)
+    run = run_scan(db, scope, old, FakeAdapter([[posting("alt1", "Alte Stelle", "AG Alt", place="Musterstadt")]]))
+    db.add(ScanError(run_id=run.id, kind="timeout", message="uralter technischer Fehler"))
+    db.flush()
+    db.execute(sql("UPDATE scan_error SET at = now() - interval '400 days'"))
+    db.execute(sql("UPDATE scan_run SET finished_at = now() - interval '400 days'"))  # letzter vollständiger Lauf liegt lange zurück
+    queue.enqueue(db, "maintenance", {}, dedupe_key="m1", lock_key="maintenance")
+    queue.enqueue(db, "aggregate", {"from": old.isoformat(), "to": old.isoformat()}, lock_key="aggregate")
+    queue.enqueue(db, "gibt_es_nicht", {}, max_attempts=1)
+    db.commit()
+    assert process_one("test-worker") and process_one("test-worker") and process_one("test-worker") and not process_one("test-worker")
+    db.expire_all()
+    jobs = {j.kind: j for j in db.execute(select(Job)).scalars()}
+    assert jobs["maintenance"].status == "done" and jobs["aggregate"].status == "done" and jobs["aggregate"].result["rows"] > 0
+    assert jobs["gibt_es_nicht"].status == "failed" and "unbekannte Jobart" in jobs["gibt_es_nicht"].last_error  # Fehler bleiben sichtbar
+    assert db.execute(select(func.count()).select_from(ScanError)).scalar_one() == 0  # technisches Protokoll bereinigt
+    # fachliche Historie bleibt vollständig erhalten
+    assert db.execute(select(func.count()).select_from(ScanRun)).scalar_one() == 1
+    assert db.execute(select(func.count()).select_from(Observation)).scalar_one() == 1
+    assert db.execute(select(func.count()).select_from(PostingVersion)).scalar_one() == 1
+    # veraltete aktive Quelle erzeugt eine sichtbare Warnung
+    warn = db.execute(select(OpsWarning).where(OpsWarning.kind == "stale_source")).scalar_one()
+    assert "kein vollständiger Lauf" in warn.message and warn.source_id == src.id
+
+
+def test_run_control_via_api(client, db):
+    src, scope = make_source(db, adapter_key="service_bund_rss")
+    h = login(client, "chefin")
+    r = client.post(f"/api/sources/{src.id}/runs", json={"test": True, "page_limit": 1}, headers=h)
+    assert r.status_code == 200
+    run_id = r.json()["runs"][0]["run_id"]
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert detail["is_test"] and detail["status"] == "queued" and detail["page_limit"] == 1
+    assert db.execute(select(func.count()).select_from(Job).where(Job.kind == "scan_run")).scalar_one() == 1
+    # regulärer Lauf: je Suchbereich und Tag nur einer – zweiter Aufruf liefert denselben Lauf
+    a = client.post(f"/api/sources/{src.id}/runs", json={}, headers=h).json()["runs"][0]
+    b = client.post(f"/api/sources/{src.id}/runs", json={}, headers=h).json()["runs"][0]
+    assert a["created"] is True and b["created"] is False and a["run_id"] == b["run_id"]
+    assert client.post(f"/api/runs/{a['run_id']}/pause", headers=h).status_code == 422  # nicht laufend
+    assert client.post(f"/api/runs/{a['run_id']}/cancel", headers=h).json()["status"] == "cancelled"
+    assert client.post(f"/api/runs/{a['run_id']}/retry", headers=h).status_code == 422
+    db.expire_all()
+    run = db.get(ScanRun, run_id)
+    run.status = "paused"
+    db.commit()
+    assert client.post(f"/api/runs/{run_id}/resume", headers=h).json()["status"] == "queued"
+    assert client.post(f"/api/runs/{run_id}/unsinn", headers=h).status_code == 422
+    # neue Suchbereichsversion über die API: alte Version wird stillgelegt, Vermerk zur Vergleichbarkeit entsteht
+    r = client.post(f"/api/sources/{src.id}/scopes", json={"key": "alle", "name": "Alle (neu)", "params": {"x": 1}, "mode": "full"}, headers=h)
+    scopes = {(s["version"], s["is_active"]) for s in r.json()["scopes"]}
+    assert scopes == {(1, False), (2, True)}
+    # Karriereseite vormerken: startet als „vorgemerkt“, interne Ziele werden abgelehnt
+    ok = {"key": "stadt_muster", "name": "Stadt Muster (synthetisch)", "domain": "karriere.muster.example", "sitemap_url": "https://karriere.muster.example/sitemap.xml",
+          "url_pattern": r"/stellen/\d+$", "legal_notes": "robots.txt geprüft am 10.11.2026, keine Einschränkung; Impressum ohne Vorbehalt"}
+    r = client.post("/api/sources/career-page", json=ok, headers=h)
+    assert r.status_code == 200 and r.json()["config_status"] == "candidate" and r.json()["is_career_page"]
+    bad = dict(ok, key="boese", sitemap_url="https://169.254.169.254/sitemap.xml")
+    assert client.post("/api/sources/career-page", json=bad, headers=h).status_code == 422

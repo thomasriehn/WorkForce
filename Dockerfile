@@ -16,8 +16,8 @@ RUN npm run build
 
 FROM ${UV_IMAGE} AS uv
 
-# ---------- Laufzeit ---------------------------------------------------------------------------------
-FROM ${PYTHON_IMAGE} AS runtime
+# ---------- Python-Laufzeit mit Abhängigkeiten ----------------------------------------------------------
+FROM ${PYTHON_IMAGE} AS base
 # Chromium (Playwright) wird für öffentlich angebotene Tabellenexporte der amtlichen Statistik benötigt.
 # Mit --build-arg INSTALL_BROWSER=0 entfällt er (dann nur manueller Dateiimport für diese Tabellen).
 ARG INSTALL_BROWSER=1
@@ -29,7 +29,7 @@ COPY --from=uv /uv /usr/local/bin/uv
 WORKDIR /app
 RUN --mount=type=secret,id=extra_ca,required=false . extra-ca \
     && sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
-    && apt-get update && apt-get install -y --no-install-recommends tini curl \
+    && apt-get update && apt-get install -y --no-install-recommends tini curl libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN --mount=type=secret,id=extra_ca,required=false . extra-ca \
@@ -40,10 +40,13 @@ RUN --mount=type=secret,id=extra_ca,required=false . extra-ca \
        fi
 COPY backend/ ./
 RUN --mount=type=secret,id=extra_ca,required=false . extra-ca && uv sync --frozen --no-dev
-COPY --from=frontend /src/dist /app/static
 RUN groupadd --system --gid 10001 workforce && useradd --system --uid 10001 --gid workforce --home-dir /app workforce \
     && mkdir -p /data && chown -R workforce:workforce /data
 USER workforce
+
+# ---------- Auslieferung: Laufzeit + gebaute Oberfläche -----------------------------------------------
+FROM base AS runtime
+COPY --from=frontend --chown=root:root /src/dist /app/static
 VOLUME ["/data"]
 EXPOSE 8000
 ENTRYPOINT ["/usr/bin/tini", "--", "workforce"]
