@@ -1,0 +1,72 @@
+/* Gestaltungswerte (Farben, Abstände, Schrift). Nur Systemschriften – es werden keine Schriftdateien geladen. */
+:root {
+  color-scheme: light;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* Flächen */
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface-2: #f8f9fb;
+  --surface-3: #eef1f5;
+  --border: #dfe3ea;
+  --border-strong: #c3cad6;
+
+  /* Schrift */
+  --text: #17202c;
+  --text-2: #445063;
+  --text-3: #5f6b7d;
+
+  /* Akzent */
+  --accent: #1f5fae;
+  --accent-hover: #174c8e;
+  --accent-soft: #e9f1fb;
+  --accent-border: #b9d2f0;
+  --focus: #0b57d0;
+
+  /* Zustände (immer mit Symbol und Text, nie Farbe allein) */
+  --good: #176b33;
+  --good-soft: #e5f4e9;
+  --good-border: #b5dcc0;
+  --warn: #7a5200;
+  --warn-soft: #fff3d1;
+  --warn-border: #edd28a;
+  --serious: #9a4508;
+  --serious-soft: #fdeddc;
+  --serious-border: #f0c9a1;
+  --crit: #a8231c;
+  --crit-soft: #fde9e7;
+  --crit-border: #f1bcb7;
+  --neutral: #445063;
+  --neutral-soft: #edf0f4;
+  --neutral-border: #d3d9e2;
+
+  /* Maße */
+  --radius-s: 6px;
+  --radius: 10px;
+  --radius-l: 14px;
+  --control-h: 40px;
+  --sidebar-w: 244px;
+  --topbar-h: 56px;
+  --content-max: 1480px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-2: 0 10px 30px rgba(16, 24, 40, 0.14), 0 2px 6px rgba(16, 24, 40, 0.06);
+
+  --fs-xs: 0.78rem;
+  --fs-s: 0.86rem;
+  --fs-m: 0.95rem;
+  --fs-l: 1.08rem;
+  --fs-xl: 1.3rem;
+  --fs-xxl: 1.65rem;
+}
