@@ -25,6 +25,8 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 
 const BASE = (process.env.WF_BASE_URL || 'http://127.0.0.1:8010').replace(/\/$/, '');
+// Ort für die Umkreissuche: Standard ist der Ort der synthetischen Entwicklungsdaten; für echte Daten z. B. WF_VERIFY_PLACE=Leipzig
+const PLACE = process.env.WF_VERIFY_PLACE || 'Nordmusterstadt';
 const OUT = path.join(__dirname, '..', 'screenshots');
 const WITH_MUTATIONS = process.argv.includes('--mutations');
 // Optionaler Vorsatz für die Dateinamen der Bildschirmfotos, z. B. --prefix=leer für einen Lauf ohne Daten.
@@ -244,7 +246,7 @@ async function walk(s) {
   });
   await page.keyboard.press('Escape');
   if (districts.length > 0) {
-    const town = 'Nordmusterstadt';
+    const town = PLACE;
     await s.visit('suche-umkreis', `/suche?place=${town}&radius_km=50&kind_group=all`);
   }
   s.allow('GET', /\/api\/postings\?/, 422);

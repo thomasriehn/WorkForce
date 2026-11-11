@@ -163,14 +163,33 @@ Einschränkungen dieser Abnahme:
 
 ## 6. Oberfläche
 
-Geprüft mit Chromium gegen den Compose-Aufbau mit den realen Daten (Anmeldung als Administrator, alle Bereiche
-aufgerufen): keine Konsolenfehler, keine fehlgeschlagenen Anfragen, **keine Anfrage an fremde Hosts** (keine
-Kartenkacheln, keine Schriftarten, kein API-Key). Karte mit 400 Kreisflächen, Legende mit getrennter Darstellung
-von „0“ und „keine Daten“, Kennzeichnung geringer Fallzahlen; Suche mit Trefferzahl, Suchumfang und geografischer
-Aufschlüsselung; Dashboard mit Hinweis „Kein Vergleich möglich“ samt Vergleichsgrundlage.
+Geprüft mit dem Browser-Prüfskript `frontend/scripts/verify.cjs` (Chromium) gegen den Compose-Aufbau mit den
+**realen Daten**, jeweils als Administrator und als Leser, in 1440×900 und 820×1180:
 
-Nicht systematisch geprüft: Bedienung per Tastatur und Screenreader, ältere Browser, reale Tablets (nur
-Bildschirmbreite 820 px im automatisierten Durchlauf).
+```bash
+cd frontend && WF_BASE_URL=http://127.0.0.1:8080 WF_VERIFY_PLACE=Leipzig WF_ADMIN_USER=… WF_ADMIN_PASS=… WF_READER_USER=… WF_READER_PASS=… npm run verify
+```
+
+Ergebnis: **keine Probleme** – keine Konsolenfehler, keine Verstöße gegen die Content-Security-Policy, keine
+fehlgeschlagenen Anfragen, keine Anfrage an fremde Hosts (keine Kartenkacheln, keine Schriftarten, kein API-Key),
+keine schreibenden Bedienelemente im Lesezugriff. Durchlaufen werden alle Bereiche einschließlich Umkreissuche,
+Kartenansichten (anteilig, unterschiedliche Anzeigen, Rate, Veränderung, Kontextstatistik), Kreisauswahl, Regionen-
+und Anzeigendetail, Quellenverwaltung, Läufe und System.
+
+Stichproben der Bildschirmfotos mit echten Daten: Karte mit 400 Kreisflächen und getrennter Darstellung von „0“ und
+„keine Daten“; Kontextkarte „Arbeitslose“ mit Berichtszeitraum, Revision, Alter, „Veröffentlicht: unbekannt“ und
+Quellenangabe; Quellenregister mit getrennten Spalten für Konfigurationsstatus und technischen Zustand; Dashboard
+mit „Kein Vergleich möglich“ samt Vergleichsgrundlage.
+
+Zusätzlich hat die Oberflächenentwicklung dasselbe Skript mit synthetischen Entwicklungsdaten (112 Ansichten) und
+mit leerer Datenbank (68 Ansichten) ohne Befund durchlaufen.
+
+Nicht ausgeführt, nur dargestellt: erfolgreiche Freigabe und Deaktivierung über die Oberfläche, Laufstart sowie
+Pause/Fortsetzung/Abbruch/Wiederholung, Zusammenführen/Trennen, Statistik-Upload, Job-Auslöser, Budget- und
+Suchbereichsänderung. Diese Aktionen sind über API-Tests bzw. die CLI geprüft, nicht per Klick.
+
+Nicht systematisch geprüft: Bedienung per Tastatur und Screenreader (Kreisflächen der Karte sind nicht per Tastatur
+fokussierbar; Ersatz sind Kreissuche und Tabellenansicht), ältere Browser, reale Tablets.
 
 ## 7. Abnahmekriterien
 
@@ -200,3 +219,13 @@ Bildschirmbreite 820 px im automatisierten Durchlauf).
 - Automatischer Abruf der BA-Statistikdateien, VG250-Download über den Importer.
 - Reverse-Proxy-Beispiele (`deploy/`) – nicht ausgeführt.
 - Die Prüfung von stellenanzeigen.de und yourfirm aus einem deutschen Netz.
+
+## 9. Bekannte kleinere Lücken
+
+- `export.csv` endet ohne Hinweis bei 50.000 Zeilen.
+- Die Kontextkarte zeigt nur ungegliederte Kennzahlen; berufsbezogene Werte (KldB-Dimension) sind in der Datenbank,
+  aber in der Oberfläche nicht auswählbar.
+- Die Oberfläche zeigt nicht an, welche Datei ein Statistik-Upload erwartet; das liefert bisher nur
+  `workforce stats list`.
+- Der Statusfilter wird bei Stichtagsabfragen ignoriert (der Stichtagsbestand ist per Definition „im Bestand“).
+- Nur helles Farbschema.
