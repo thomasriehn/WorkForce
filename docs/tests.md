@@ -36,6 +36,20 @@ Stand: 10.11.2026. Dieses Dokument trennt strikt zwischen **geprüft** (mit Erge
 - Gesamte Backend-Suite nach der Korrektur: **113 bestanden, 1 übersprungen** (48,33 s); derselbe optionale
   Statistik-Probedateitest und dieselbe FastAPI/Starlette-Warnung wie oben.
 
+### Anmeldung: Sitzung vor der HTTP-Antwort speichern (11.11.2026)
+
+- Fehler vor der Korrektur reproduziert: Eine unabhängige PostgreSQL-Verbindung konnte die neue Sitzung
+  beim Senden der erfolgreichen Login-Antwort noch nicht sehen. Das führte bei schnellen Folgeanfragen zu 401;
+  nach Abschluss der Transaktion funktionierte dieselbe Sitzung beim Neuladen.
+- `tests/test_auth_session.py` prüft die tatsächliche ASGI-Antwortgrenze mit verzögertem Dependency-Abbau.
+  Varianten mit HTTP-/HTTPS-Testclient und ohne/mit Secure-Cookie schlugen vorher gezielt fehl und bestehen
+  nach der Korrektur. Login muss vor der Antwort sichtbar sein, Logout muss die Sitzung bereits widerrufen haben.
+- Ein fehlgeschlagener Commit liefert HTTP 500 ohne Sitzungscookie statt einer verfrühten Erfolgsmeldung.
+  Die Testdatenbank enthält danach keine ungespeicherte Sitzung.
+- `pytest -q tests/test_auth_session.py tests/test_api_ops.py`: **9 bestanden** (13,43 s), bestehende
+  FastAPI/Starlette-Warnung. Ruff für die geänderten Authentifizierungsdateien erfolgreich.
+  Dafür wurden keine Produktionszugangsdaten verwendet; die bestehende Proxy-Installation wurde nicht verändert.
+
 ## 1. Tests ausführen
 
 Die Tests laufen gegen eine echte PostgreSQL-Datenbank mit PostGIS (keine SQL-Mocks) und rufen **nie** externe

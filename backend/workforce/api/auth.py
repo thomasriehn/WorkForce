@@ -28,6 +28,10 @@ def login(body: LoginIn, response: Response, db: Db) -> dict:
         raise HTTPException(401, "Benutzername oder Passwort falsch (oder Konto vorübergehend gesperrt)")
     token, csrf = create_session(db, user)
     audit(db, user, "login")
+    # Die Request-Dependency schließt ihre Transaktion erst nach dem Senden der
+    # Antwort. Das Cookie darf erst herausgehen, wenn Folgeanfragen die Sitzung
+    # bereits sehen können (sonst sofortiges 401 direkt nach erfolgreichem Login).
+    db.commit()
     response.set_cookie(COOKIE, token, httponly=True, secure=s.cookie_secure, samesite="lax", max_age=s.session_hours * 3600, path="/")
     return _user_out(user, csrf)
 
@@ -35,6 +39,7 @@ def login(body: LoginIn, response: Response, db: Db) -> dict:
 @router.post("/logout")
 def logout(request: Request, response: Response, db: Db) -> dict:
     end_session(db, request.cookies.get(COOKIE))
+    db.commit()  # Widerruf muss vor der Bestätigung auch für parallele Anfragen gelten.
     response.delete_cookie(COOKIE, path="/")
     return {"ok": True}
 

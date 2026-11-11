@@ -263,6 +263,7 @@ Auf einem neuen System: Repository klonen, `config.tar.gz` entpacken, `docker co
 |---|---|
 | `migrate` endet mit Fehler | `docker compose logs migrate`. Häufig: `POSTGRES_PASSWORD` nachträglich geändert – das Volume `db-data` kennt noch das alte Passwort. |
 | Anmeldung schlägt trotz richtigem Passwort fehl | Zugriff über HTTP bei `WF_COOKIE_SECURE=true`: Der Browser sendet das Cookie nicht. TLS-Proxy verwenden oder für einen Test auf `false` setzen. |
+| Sofort „Sitzung abgelaufen“ nach Anmeldung, auch über HTTPS; nach Neuladen angemeldet | Frühere Versionen sendeten das Sitzungscookie vor dem Datenbank-Commit. Eine schnelle Folgeanfrage konnte deshalb 401 erhalten. Repository aktualisieren und `docker compose up -d --build` ausführen. Login und Logout speichern die Sitzungsänderung jetzt vor der Antwort. Für HTTPS bleibt `WF_COOKIE_SECURE=true`. |
 | Es werden keine Läufe geplant | `WF_CRAWLER_CONTACT` leer, keine Quelle freigegeben oder Scheduler nicht `healthy`. |
 | Lauf „abgelehnt“ | Quelle nicht freigegeben, oder es läuft bereits ein Scan derselben Quelle. |
 | Lauf `blocked` | Die Quelle hat den Zugriff verweigert (403, 429, CAPTCHA, robots.txt). Nicht umgehen: Grund im Protokoll lesen, Abstand erhöhen oder beim Betreiber anfragen. |
