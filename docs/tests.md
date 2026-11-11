@@ -2,6 +2,28 @@
 
 Stand: 10.11.2026. Dieses Dokument trennt strikt zwischen **geprüft** (mit Ergebnis) und **nicht geprüft**.
 
+## Ergänzung BA-Jobsuche / Cloud-Umgebung (11.11.2026)
+
+- Gesamte Backend-Suite: **107 bestanden, 1 übersprungen** (26,77 s). Übersprungen wurde der optionale Import
+  echter Statistik-Probedateien, weil `WF_REAL_SAMPLES_DIR` nicht gesetzt ist. Eine vorhandene
+  FastAPI/Starlette-Deprecation-Warnung zu HTTPX bleibt bestehen.
+- `tests/test_ba_jobsuche.py`: 22 Fälle mit synthetischem HTML/JSON-LD, einschließlich Pagination/Fortsetzung,
+  Trefferlimit, Layoutfehler, wiederholter Seiten, unveränderter Tagesläufe, Schutz vor Archivierung nach
+  Abruffehlern, Register-Upgrade, Statistik-Standard und explizitem Opt-out.
+- PostgreSQL 17/PostGIS 3.5 mit dem Digest aus `compose.yaml`; Migrationen und wiederholtes Seeding erfolgreich.
+  Backend mit Python 3.13.5 und `uv sync --frozen`, Frontend mit Node 24.22.1 und `npm ci` installiert.
+- `npm run build` einschließlich TypeScript-Prüfung erfolgreich. Ruff für neue Adapter-/Testdateien und geänderte
+  Konfigurations-/Register-/Statistikmodule erfolgreich. Bei zusätzlicher Prüfung von `test_api_ops.py` meldet Ruff
+  vier bereits vorhandene Hinweise außerhalb der geänderten Zeilen (ungenutzte Variablen / noqa).
+- Native Anwendung gestartet: Web, Worker und Scheduler mit erfolgreichen Healthchecks. HTTP-Smoke-Test mit
+  temporärem Prüfkonto: Anmeldung, Quellenregister mit verfügbarem BA-Adapter, Dashboard, leere Stellensuche,
+  sechs Statistikdatensätze und ausgeliefertes Frontend erfolgreich. Prüfkonto danach entfernt.
+- Installations- und Startschritte in der laufenden Cloud-Instanz wiederholt geprüft. Ein vollständiger
+  Compose-App-Build und Wiederherstellung in einer neu veröffentlichten Cloud-Instanz wurden hier nicht geprüft.
+- **Offen:** Live-Abgleich der BA-Jobsuche und neuer Live-Statistikabruf. Der Cloud-Proxy blockiert die BA-Domains
+  bis zur Übernahme der vorgemerkten Netzwerkfreigaben; für automatische Abrufe ist außerdem die Kontaktangabe
+  des Betreibers erforderlich. Details: [ba-jobsuche.md](ba-jobsuche.md).
+
 ## 1. Tests ausführen
 
 Die Tests laufen gegen eine echte PostgreSQL-Datenbank mit PostGIS (keine SQL-Mocks) und rufen **nie** externe

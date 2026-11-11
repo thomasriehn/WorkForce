@@ -104,8 +104,8 @@ def test_seed_reference_is_idempotent_and_describe(db):
     info = {d["key"]: d for d in describe()}
     assert list(info) == ["vg250", "gv_isys", "kldb2010", "ba_arbeitslose_kreise", "ba_berufe", "bevoelkerung_kreise_alter"]
     assert info["vg250"]["auto_enabled"] is True and info["vg250"]["last_release"] is None
-    for key in ("kldb2010", "ba_arbeitslose_kreise", "ba_berufe"):  # BA-Hosts: ohne ausdrückliche Freigabe kein Robot
-        assert info[key]["auto_enabled"] is False and "Nr. 2a (3)" in info[key]["auto_disabled_reason"]
+    for key in ("kldb2010", "ba_arbeitslose_kreise", "ba_berufe"):
+        assert info[key]["auto_enabled"] is True and info[key]["auto_disabled_reason"] is None
     assert all(d["discovery"] and d["publisher"] and d["name"] and d["manual_file"] for d in info.values())
 
 
@@ -165,13 +165,14 @@ def test_discovery_parsers_on_synthetic_pages():
 # --------------------------------------------------------------------------------------------------------
 # run_imports
 # --------------------------------------------------------------------------------------------------------
-def test_ba_datasets_are_skipped_without_explicit_permission(db, monkeypatch):
+def test_ba_datasets_are_skipped_when_explicitly_disabled(db, monkeypatch):
+    monkeypatch.setattr(get_settings(), "stats_ba_auto", False)
     calls = install_http(monkeypatch, lambda r: httpx.Response(500))
     res = run_imports(["ba_arbeitslose_kreise", "ba_berufe", "kldb2010"])
     assert set(res) == {"ba_arbeitslose_kreise", "ba_berufe", "kldb2010"}
     for key, r in res.items():
         assert r["status"] == "skipped"
-        assert "statistik.arbeitsagentur.de" in r["reason"] and "Nr. 2a (3)" in r["reason"] and "Robots" in r["reason"]
+        assert "statistik.arbeitsagentur.de" in r["reason"] and "WF_STATS_BA_AUTO=false" in r["reason"]
         assert DATASET_BY_KEY[key].landing_url in r["reason"] and "importiert werden" in r["reason"]
     assert calls == []  # es wurde nichts abgerufen
     assert run_imports(["gibt_es_nicht"])["gibt_es_nicht"]["status"] == "failed"
@@ -226,6 +227,7 @@ def test_auto_import_discovers_downloads_and_respects_conditional_get(db, tmp_pa
     assert db.execute(sql("SELECT count(*) FROM stat_release")).scalar() == 2
 
     # geplanter Lauf (ohne Auswahl): selten erscheinende Datensätze werden nicht täglich geprüft; BA bleibt aus
+    monkeypatch.setattr(get_settings(), "stats_ba_auto", False)
     calls.clear()
     monkeypatch.setattr(genesis_ui, "export_flat_csv", lambda *a, **k: (_ for _ in ()).throw(genesis_ui.UiError("kein Browser im Test")))
     res = run_imports()
@@ -264,8 +266,8 @@ def test_one_failing_dataset_does_not_stop_the_others(db, tmp_path, monkeypatch,
     assert state["last_status"] == "failed" and "last_success_at" not in state
 
 
-def test_ba_auto_only_when_enabled_and_no_hammering_on_429(db, tmp_path, monkeypatch):
-    monkeypatch.setattr(get_settings(), "stats_ba_auto", True)
+def test_ba_auto_by_default_and_no_hammering_on_429(db, tmp_path, monkeypatch):
+    assert get_settings().stats_ba_auto is True
     spec = DATASET_BY_KEY["ba_berufe"]
     file_url = ("https://statistik.arbeitsagentur.de/Statistikdaten/Detail/202403/iiia4/berufe-heft-kldb2010/"
                 "berufe-heft-kldb2010-dwol-0-202403-xlsx.xlsx?__blob=publicationFile&v=1")

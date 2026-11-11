@@ -15,9 +15,9 @@ Prüfdatum aller Einträge: **10.11.2026**. Diese Datei wird aus `backend/workfo
 - **Konkrete Grenze:** Die großen allgemeinen Portale (BA-Jobsuche, Stepstone, Indeed, meinestadt.de) und academics untersagen
   automatisierte Abrufe ausdrücklich. Monster, jobvector, Azubiyo und Absolventa antworten mit Bot-Schutz-Challenges.
   stellenanzeigen.de und yourfirm waren aus der Entwicklungsumgebung geo-gesperrt und sind ungeprüft.
-- **Technisch umgesetzt** sind vier Quellenadapter plus ein generischer Adapter für Arbeitgeber-Karriereseiten. Live geprüft
-  wurde der offizielle RSS-Feed von service.bund.de. Alle umgesetzten Quellen liegen im öffentlichen Dienst bzw. im
-  Umweltsegment.
+- **Technisch umgesetzt** sind fünf Quellenadapter plus ein generischer Adapter für Arbeitgeber-Karriereseiten. Live geprüft
+  wurde der offizielle RSS-Feed von service.bund.de. Der BA-Jobsuche-Adapter ergänzt HTML-Suche und JSON-LD-Details;
+  seine Live-Prüfung steht aus (Cloud-Netzwerkzugriff am 11.11.2026 durch den Proxy blockiert).
 - **Keine Quelle ist nach der Installation automatisch aktiv.** Die Freigabe erfolgt durch den Betreiber mit Freigabevermerk;
   Quellen mit Erlaubnisvorbehalt verlangen zusätzlich den Nachweis der Erlaubnis.
 
@@ -29,7 +29,7 @@ Prüfdatum aller Einträge: **10.11.2026**. Diese Datei wird aus `backend/workfo
 | [karriere.bund.de](https://karriere.bund.de/) | Bundesverwaltung | vorgemerkt | `karriere_bund` (kbund-1) | html_list_jsonld | Technisch umgesetzt. Freigabe ist eine Betreiberentscheidung (Textvorbehalt im Impressum, s. Prüfvermerk). |
 | [INTERAMT](https://karriere.interamt.de/de) | Öffentlicher Dienst | Erlaubnis erforderlich | `interamt` (interamt-1) | sitemap_jsonld | Speicherung/Übernahme nur nach vorheriger schriftlicher Zustimmung der DVZ M-V GmbH (Impressum, Rechtshinweis). |
 | [greenjobs.de](https://www.greenjobs.de/) | Umwelt und Nachhaltigkeit | Erlaubnis erforderlich | `greenjobs` (greenjobs-1) | sitemap_jsonld | AGB § 12 beschränkt die Nutzung auf Abruf und Anzeige innerhalb der Portalfunktionen; Erlaubnis von greenjobs einholen. |
-| [Bundesagentur für Arbeit – Jobsuche](https://www.arbeitsagentur.de/jobsuche/) | Allgemeiner Stellenmarkt (größter Bestand) | Erlaubnis erforderlich | keiner | – | Nutzungsbedingungen Nr. 2a (3) untersagen ausdrücklich den Einsatz von Robots/Webspidern. Kein Adapter. |
+| [Bundesagentur für Arbeit – Jobsuche](https://www.arbeitsagentur.de/jobsuche/) | Allgemeiner Stellenmarkt (größter Bestand) | Erlaubnis erforderlich | `ba_jobsuche` (ba-html-1) | html_list_jsonld | HTML-/JSON-LD-Adapter implementiert, Live-Prüfung ausstehend. Nutzungsbedingungen Nr. 2a (3): Freigabe mit Erlaubnisnachweis erforderlich. |
 | [Stepstone](https://www.stepstone.de/) | Allgemeiner Stellenmarkt | Erlaubnis erforderlich | keiner | – | Nutzungsbedingungen Nr. 4.3.4 untersagen Scraping; Nr. 13.2 (i) die Nutzung zur Entwicklung anderer Dienste. Kein Adapter. |
 | [meinestadt.de – Stellenmarkt](https://jobs.meinestadt.de/) | Regionaler Stellenmarkt | Erlaubnis erforderlich | keiner | – | Nutzungsbedingungen Nr. 5.2 untersagen Scraping; Nr. 12 (i) die Nutzung zur Entwicklung anderer Dienste. Kein Adapter. |
 | [Indeed](https://de.indeed.com/) | Allgemeiner Stellenmarkt (Aggregator) | Erlaubnis erforderlich | keiner | – | Nutzungsbedingungen Abschnitt D.21 untersagen automatisierten Zugriff und Datenextraktion ohne schriftliche Erlaubnis. Kein Adapter. |
@@ -105,8 +105,10 @@ Der technische Gesundheitszustand (letzter Lauf, Datenstand, Fehler) wird getren
 - **Domain:** `www.arbeitsagentur.de` – Einstieg: https://www.arbeitsagentur.de/jobsuche/
 - **Fachliche Abdeckung:** Allgemeiner Stellenmarkt (größter Bestand)
 - **Konfigurationsstatus:** Erlaubnis erforderlich (`permission_required`)
-- **Grund:** Nutzungsbedingungen Nr. 2a (3) untersagen ausdrücklich den Einsatz von Robots/Webspidern. Kein Adapter.
-- **Adapter:** keiner (nur vorgemerkt)
+- **Grund:** HTML-/JSON-LD-Adapter implementiert, Live-Prüfung ausstehend. Nutzungsbedingungen Nr. 2a (3): Freigabe mit Erlaubnisnachweis erforderlich.
+- **Adapter:** `ba_jobsuche`, Version `ba-html-1`, Zugriffsart `html_list_jsonld`, Entdeckung: vollständige Aufzählung des Suchbereichs, Detailseiten: required, Textauszüge: nein
+- **Abrufbudget (Standard):** Abstand 5 s, höchstens 40 Listenseiten und 500 Detailseiten je Lauf
+- **Suchbereich:** `stellen` v1 – BA-Stellenangebote (Suchbereich bei Trefferlimit eingrenzen) (Modus `full`)
 - **Bedingungen:** https://www.arbeitsagentur.de/nutzungsbedingungen
 - **robots.txt:** https://www.arbeitsagentur.de/robots.txt
 - **Prüfvermerk (10.11.2026):** robots.txt erlaubt zwar alles, die Nutzungsbedingungen (Stand 10.11.2026) gehen aber vor: Nr. 2a (3) „Es ist insbesondere nicht zulässig: Robots, Webspider oder ähnliche Technologien einzusetzen“ sowie unautorisiert Schnittstellen zu nutzen, um Inhalte „zum Zweck der Datensammlung und -auswertung auszulesen“. Impressum: Nutzung zu anderen Zwecken nur mit ausdrücklicher vorheriger Genehmigung; Quellenformat vorgeschrieben. Vorgesehener Weg für Dritte: Kooperationsvereinbarung zur HR-BA-XML-Schnittstelle (Account- und Allianzpartnermanagement der BA). Technisch wäre die Jobsuche lesbar (serverseitig gerendertes HTML, Trefferobergrenze 10.000) – das ändert nichts an der fehlenden Erlaubnis.
@@ -237,9 +239,10 @@ als *vorgemerkt* und braucht einen eigenen Prüf- und Freigabevermerk (robots.tx
 
 Lizenz, Quellenvermerk und Abrufweg je Datenprodukt stehen in [betrieb.md](betrieb.md#erstimport-amtlicher-daten) und in der
 Oberfläche unter „Methodik und Quellen“. Besonderheit: Der automatische Abruf von `statistik.arbeitsagentur.de` ist
-standardmäßig ausgeschaltet (`WF_STATS_BA_AUTO=false`), weil die allgemeinen Nutzungsbedingungen der BA Robots untersagen und der
-Host bei der Recherche Zugriffe mit HTTP 429 gedrosselt hat. Die Dateien selbst dürfen laut Impressum der Statistikhefte mit
-Quellenangabe gespeichert und genutzt werden; sie werden manuell geladen und über Oberfläche oder CLI importiert.
+standardmäßig aktiv (`WF_STATS_BA_AUTO=true`); `WF_CRAWLER_CONTACT` bleibt erforderlich. Mit `false` abschaltbar.
+Die allgemeinen Nutzungsbedingungen und die Nutzungshinweise der Statistik gelten weiterhin. Der Host hat bei der Recherche
+mit HTTP 429 gedrosselt; Abrufabstände und Sperrpausen bleiben wirksam. Die Dateien dürfen laut Impressum mit Quellenangabe
+gespeichert und genutzt werden; alternativ ist der manuelle Import über Oberfläche oder CLI möglich.
 
 ## Offenlegung zur Entwicklung
 

@@ -56,12 +56,16 @@ def test_login_roles_csrf_and_lockout(client, db):
     assert client.post(f"/api/sources/{sid}/activate", json={"basis": "ok"}, headers=h).status_code == 422  # Vermerk zu knapp
     r = client.post(f"/api/sources/{sid}/activate", json=body, headers=h)
     assert r.status_code == 200 and r.json()["config_status"] == "active" and "Freigabe am" in r.json()["status_reason"]
-    # Quelle mit Erlaubnisvorbehalt: ohne Nachweis keine Freigabe; Quelle ohne Adapter gar nicht
+    # Quellen mit Erlaubnisvorbehalt (einschließlich BA): ohne Nachweis keine Freigabe
     assert client.post(f"/api/sources/{pr}/activate", json=body, headers=h).status_code == 422
     assert client.post(f"/api/sources/{pr}/activate", json=dict(body, permission_reference="Schreiben der DVZ vom 01.12.2026"), headers=h).status_code == 200
-    r = client.post(f"/api/sources/{ba}/activate", json=dict(body, permission_reference="irgendein Nachweis"), headers=h)
-    assert r.status_code == 422 and "kein Adapter" in r.json()["detail"]
+    assert client.post(f"/api/sources/{ba}/activate", json=body, headers=h).status_code == 422
     assert client.post(f"/api/sources/{ba}/runs", json={"test": True}, headers=h).status_code == 422
+    r = client.post(f"/api/sources/{ba}/activate", json=dict(body, permission_reference="Synthetischer Testnachweis vom 11.11.2026"), headers=h)
+    assert r.status_code == 200 and r.json()["config_status"] == "active"
+    stepstone = db.execute(select(Source.id).where(Source.key == "stepstone")).scalar_one()
+    r = client.post(f"/api/sources/{stepstone}/activate", json=dict(body, permission_reference="Synthetischer Testnachweis"), headers=h)
+    assert r.status_code == 422 and "kein Adapter" in r.json()["detail"]
     # Register trennt Konfigurationsstatus und technischen Zustand
     reg = {s["key"]: s for s in client.get("/api/sources").json()["sources"]}
     assert reg["service_bund_rss"]["config_status"] == "active" and reg["service_bund_rss"]["health"] == "never_run"

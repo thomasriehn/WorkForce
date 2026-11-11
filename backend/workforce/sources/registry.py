@@ -98,9 +98,13 @@ REGISTRY: list[dict[str, Any]] = [
     {
         "key": "ba_jobsuche", "name": "Bundesagentur für Arbeit – Jobsuche", "domain": "www.arbeitsagentur.de",
         "entry_url": "https://www.arbeitsagentur.de/jobsuche/", "segment": "Allgemeiner Stellenmarkt (größter Bestand)",
+        "adapter_key": "ba_jobsuche", "access_method": "html_list_jsonld", "allowed_domains": ["www.arbeitsagentur.de"],
         "terms_url": "https://www.arbeitsagentur.de/nutzungsbedingungen", "robots_url": "https://www.arbeitsagentur.de/robots.txt",
         "config_status": "permission_required",
-        "status_reason": "Nutzungsbedingungen Nr. 2a (3) untersagen ausdrücklich den Einsatz von Robots/Webspidern. Kein Adapter.",
+        "status_reason": "HTML-/JSON-LD-Adapter implementiert, Live-Prüfung ausstehend. Nutzungsbedingungen Nr. 2a (3): Freigabe mit Erlaubnisnachweis erforderlich.",
+        "request_interval_seconds": 5, "max_pages_per_run": 40, "max_details_per_run": 500,
+        "scopes": [{"key": "stellen", "name": "BA-Stellenangebote (Suchbereich bei Trefferlimit eingrenzen)",
+                    "mode": "full", "params": {"list_url": "https://www.arbeitsagentur.de/jobsuche/suche?angebotsart=1"}}],
         "legal_notes": (
             "robots.txt erlaubt zwar alles, die Nutzungsbedingungen (Stand 10.11.2026) gehen aber vor: Nr. 2a (3) „Es ist insbesondere "
             "nicht zulässig: Robots, Webspider oder ähnliche Technologien einzusetzen“ sowie unautorisiert Schnittstellen zu nutzen, um "
@@ -207,7 +211,7 @@ REGISTRY: list[dict[str, Any]] = [
 
 
 def seed_registry(db: Session) -> dict[str, int]:
-    """Legt fehlende Registereinträge und Suchbereiche an. Bestehende Einträge (inkl. Status) bleiben unberührt."""
+    """Legt Registereinträge an; ergänzt den BA-Adapter ohne bestehende Freigaben/Suchbereiche zu ändern."""
     created = {"sources": 0, "scopes": 0}
     for entry in REGISTRY:
         e = dict(entry)
@@ -228,6 +232,21 @@ def seed_registry(db: Session) -> dict[str, int]:
                 db.add(SearchScope(source_id=src.id, key=sc["key"], version=1, name=sc["name"], params=sc.get("params") or {},
                                    mode=sc.get("mode", "full"), is_active=True))
                 created["scopes"] += 1
+        elif src.key == "ba_jobsuche" and src.adapter_key is None:
+            # Upgrade bisheriger Installationen: die BA war bereits als Kandidat ohne Adapter vorhanden.
+            src.adapter_key = e["adapter_key"]
+            src.adapter_version = ADAPTERS[src.adapter_key].version
+            src.access_method = e["access_method"]
+            old_reason = "Nutzungsbedingungen Nr. 2a (3) untersagen ausdrücklich den Einsatz von Robots/Webspidern. Kein Adapter."
+            if src.status_reason == old_reason:
+                src.status_reason = e["status_reason"]
+            # Auch pensionierte Versionen zählen: keine bewusst deaktivierten Suchbereiche reaktivieren.
+            has_scopes = db.execute(select(SearchScope.id).where(SearchScope.source_id == src.id).limit(1)).first()
+            if not has_scopes:
+                for sc in scopes:
+                    db.add(SearchScope(source_id=src.id, key=sc["key"], version=1, name=sc["name"],
+                                       params=sc["params"], mode=sc["mode"], is_active=True))
+                    created["scopes"] += 1
         elif src.adapter_key:
             src.adapter_version = ADAPTERS[src.adapter_key].version if src.adapter_key in ADAPTERS else src.adapter_version
     db.flush()

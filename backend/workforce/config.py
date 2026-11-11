@@ -43,11 +43,9 @@ class Settings(BaseSettings):
     max_response_bytes: int = 15_000_000
 
     # --- Amtliche Statistik -------------------------------------------------------
-    # Automatischer Abruf von statistik.arbeitsagentur.de nur nach ausdrücklicher Betreiberentscheidung:
-    # Die allgemeinen Nutzungsbedingungen der BA (Nr. 2a (3)) untersagen „Robots, Webspider oder ähnliche
-    # Technologien“; die Statistikdateien selbst dürfen mit Quellenangabe gespeichert und genutzt werden.
-    # Ohne diese Freigabe werden BA-Dateien manuell heruntergeladen und über Oberfläche/CLI importiert.
-    stats_ba_auto: bool = False
+    # Öffentliche Statistikdateien automatisch prüfen/importieren. Mit WF_STATS_BA_AUTO=false abschaltbar.
+    # Kontaktangabe, robots.txt, Abrufabstände und Quellen-/Lizenzvermerke gelten weiterhin.
+    stats_ba_auto: bool = True
     stats_request_interval_seconds: float = 10.0
     stats_max_download_bytes: int = 400_000_000
     stats_keep_source_files: bool = True

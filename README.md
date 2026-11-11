@@ -13,7 +13,7 @@ kreisfreie Städte) sichtbar macht – ergänzt um amtliche Bevölkerungs- und A
 | Bereich | Stand |
 |---|---|
 | Erfassung | Nächtliche Läufe mit Checkpoints, Pause/Fortsetzung, Testläufen, Schutz vor Überlappung; unveränderliche Inhaltsversionen, kompakte Beobachtungen, Statusableitung, Dublettenzusammenführung |
-| Quellen | **Zielabdeckung nicht erreicht.** Technisch umgesetzt: RSS-Feed von service.bund.de (live geprüft), karriere.bund.de, INTERAMT, greenjobs, generischer Adapter für Arbeitgeber-Karriereseiten. Die großen allgemeinen Portale und die BA-Jobsuche untersagen automatisierte Abrufe – siehe [docs/quellenregister.md](docs/quellenregister.md) |
+| Quellen | **Zielabdeckung nicht erreicht.** Technisch umgesetzt: RSS-Feed von service.bund.de (live geprüft), karriere.bund.de, INTERAMT, greenjobs, BA-Jobsuche (HTML/JSON-LD, Live-Prüfung ausstehend), generischer Adapter für Arbeitgeber-Karriereseiten. Freigabestatus und Grenzen: [docs/quellenregister.md](docs/quellenregister.md) |
 | Freigabe | Keine Quelle ist automatisch aktiv. Der Betreiber gibt Quellen mit Freigabevermerk frei |
 | Suche | Freitext mit Phrasen, UND/ODER, Ausschlüssen; Filter nach Beruf (KldB), Qualifikationen, Region, Umkreis, Zeitraum, Status, Quelle; gespeicherte Suchen, CSV-Export |
 | Karte | Kreisflächen ohne externen Kartendienst; anteilig gezählte Anzeigen, unterschiedliche Anzeigen, Rate je 1.000 Einwohner (15 bis unter 65), Veränderung über 7/30/90 Tage bei vergleichbarer Abdeckung |
@@ -87,6 +87,11 @@ TLS `WF_COOKIE_SECURE=false` setzen.
 
 Der erste Lauf einer Quelle ist eine **Bestandsaufnahme**: Die dabei gesehenen Anzeigen gelten nicht als neu
 veröffentlicht.
+
+Die BA-Statistik wird standardmäßig automatisch geprüft und importiert (`WF_STATS_BA_AUTO=true`, Kontaktangabe
+erforderlich). Bestehende `.env`-Dateien mit `false` überschreiben diesen Standard. BA-Jobsuche und BA-Statistik sind
+getrennte Quellen: Einrichtung des neuen Jobsuche-Adapters und begrenzte Suchbereiche siehe
+[docs/ba-jobsuche.md](docs/ba-jobsuche.md).
 
 ## Bedienung
 

@@ -62,8 +62,7 @@ BLOCK_PAUSE = timedelta(minutes=30)
 # Stammdaten und Übersicht
 # --------------------------------------------------------------------------------------------------------
 def _ba_disabled_reason(spec: Dataset) -> str:
-    return ("Der automatische Abruf von statistik.arbeitsagentur.de ist standardmäßig deaktiviert, weil die allgemeinen "
-            "Nutzungsbedingungen der Bundesagentur für Arbeit (Nr. 2a (3)) den Einsatz von Robots untersagen. Die Datei "
+    return ("Der automatische Abruf von statistik.arbeitsagentur.de ist durch WF_STATS_BA_AUTO=false deaktiviert. Die Datei "
             f"kann von Hand unter {spec.landing_url} heruntergeladen und über die Oberfläche (Statistik → Datei "
             f"importieren) oder die Kommandozeile (workforce stats import {spec.key} --file <Datei>) importiert werden. "
             "Mit WF_STATS_BA_AUTO=true lässt sich der automatische Abruf nach eigener Prüfung freigeben.")

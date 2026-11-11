@@ -91,11 +91,15 @@ Danach die Ortszuordnung bereits erfasster Anzeigen ergänzen:
 docker compose exec web workforce geo-rematch
 ```
 
-### Dateien der BA-Statistik (manueller Import)
+### Dateien der BA-Statistik (automatischer und manueller Import)
 
-Der automatische Abruf von `statistik.arbeitsagentur.de` ist standardmäßig ausgeschaltet (`WF_STATS_BA_AUTO=false`).
-Grund: Die allgemeinen Nutzungsbedingungen der BA (Nr. 2a (3)) untersagen „Robots, Webspider oder ähnliche
-Technologien“, und der Host hat bei der Recherche Zugriffe mit HTTP 429 gedrosselt. Die Statistikdateien selbst
+Der automatische Abruf von `statistik.arbeitsagentur.de` ist standardmäßig eingeschaltet (`WF_STATS_BA_AUTO=true`).
+Der Scheduler prüft täglich um `WF_STATS_CHECK_TIME` (Standard 05:30 Uhr Europe/Berlin) auf fällige Veröffentlichungen;
+der Worker übernimmt Download und Import. `WF_CRAWLER_CONTACT` muss gesetzt sein. Mit `WF_STATS_BA_AUTO=false`
+lässt sich der BA-Abruf abschalten. Bereits vorhandene `.env`-Dateien mit `false` behalten ihre Wirkung und müssen
+bei gewünschter Aktivierung angepasst werden (`docker compose up -d` übernimmt die Änderung).
+Dies aktiviert keine Jobsuche-Quelle. Nutzungsbedingungen und Quellenvermerke sind weiterhin zu beachten;
+Abrufabstände, robots.txt, HTTP-429-Sperrpausen und Revisionsprüfung bleiben wirksam. Die Statistikdateien selbst
 dürfen laut ihrem Impressum mit Quellenangabe gespeichert, vervielfältigt und verbreitet werden; eigene
 Berechnungen sind als solche zu kennzeichnen.
 
@@ -111,8 +115,7 @@ docker compose exec worker workforce stats import ba_arbeitslose_kreise --file /
 ```
 
 Der Import ist validiert (erwartete Blätter und Kopfzeilen, Berichtszeitraum aus der Datei, plausible Zeilenzahl)
-und schreibt bei Abweichungen nichts. Wer den automatischen Abruf nach eigener Prüfung nutzen will, setzt
-`WF_STATS_BA_AUTO=true`.
+und schreibt bei Abweichungen nichts. Der manuelle Dateiimport funktioniert auch bei abgeschaltetem automatischem Abruf.
 
 ### Eigenschaften aller Importe
 

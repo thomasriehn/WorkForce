@@ -22,7 +22,17 @@ from lxml import etree
 
 from ..crawl.fetcher import Fetcher, FetchResult
 from ..normalize.text import clean_url, clean_ws
-from .base import CoverageAssessment, ListItem, ListPage, ParsedPosting, ParseError, Partition, RawLocation, SourceAdapter
+from .ba_jobsuche import BaJobsucheAdapter
+from .base import (
+    CoverageAssessment,
+    ListItem,
+    ListPage,
+    ParsedPosting,
+    ParseError,
+    Partition,
+    RawLocation,
+    SourceAdapter,
+)
 from .jsonld import EMPLOYMENT_MAP, parse_date, parse_job_page
 
 EMPLOYMENT_MAP.update(
@@ -352,7 +362,7 @@ class KarriereBundAdapter(SourceAdapter):
 
 
 ADAPTERS: dict[str, type[SourceAdapter]] = {
-    a.key: a for a in (ServiceBundRssAdapter, InteramtAdapter, GreenjobsAdapter, CareerPageAdapter, KarriereBundAdapter)
+    a.key: a for a in (ServiceBundRssAdapter, InteramtAdapter, GreenjobsAdapter, CareerPageAdapter, KarriereBundAdapter, BaJobsucheAdapter)
 }
 
 

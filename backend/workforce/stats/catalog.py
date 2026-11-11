@@ -27,8 +27,9 @@ KLDB_LICENCE = (
 BA_LICENCE_URL = ("https://statistik.arbeitsagentur.de/DE/Statischer-Content/Servicebereich-Navigation/"
                   "Hinweise-Quellenangabe-Zitierung.pdf?__blob=publicationFile&v=1")
 BA_AUTO_NOTE = (
-    "Automatischer Abruf nur mit WF_STATS_BA_AUTO=true: Die allgemeinen Nutzungsbedingungen der BA (Nr. 2a (3)) "
-    "untersagen Robots; ohne Freigabe wird die Datei von Hand heruntergeladen und über Oberfläche oder CLI importiert.")
+    "Automatischer Abruf ist standardmäßig aktiv (WF_STATS_BA_AUTO=true) und benötigt WF_CRAWLER_CONTACT. "
+    "Mit WF_STATS_BA_AUTO=false abschaltbar; manueller Dateiimport bleibt verfügbar. "
+    "Die allgemeinen Nutzungsbedingungen der BA (Nr. 2a (3)) und die Nutzungshinweise der Statistik sind zu beachten.")
 DL_DE = "Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0)"
 DL_DE_URL = "https://www.govdata.de/dl-de/by-2-0"
 
