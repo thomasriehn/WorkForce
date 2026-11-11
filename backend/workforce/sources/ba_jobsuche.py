@@ -20,7 +20,7 @@ from .jsonld import find_job_postings, posting_from_jsonld
 
 class BaJobsucheAdapter(SourceAdapter):
     key = "ba_jobsuche"
-    version = "ba-html-1"
+    version = "ba-html-2"
     access_method = "html_list_jsonld"
     default_domains = ("www.arbeitsagentur.de",)
     store_excerpts = False
@@ -81,6 +81,12 @@ class BaJobsucheAdapter(SourceAdapter):
         page = int(cp.get("page", 1))
         seen = set(cp.get("seen_ids", []))
         initial_total = cp.get("total")
+        # Auch alte ba-html-1-Checkpoints bleiben fortsetzbar. Damals wurden nur
+        # überschneidungsfreie Seiten gespeichert, daher entspricht len(seen) der Position.
+        rows_seen = int(cp.get("rows_seen", len(seen)))
+        total_changed = bool(cp.get("total_changed", False))
+        overlap_count = int(cp.get("overlap_count", 0))
+        capped_seen = bool(cp.get("capped", initial_total is not None and initial_total >= self.RESULT_LIMIT))
         if page < 1 or page > self.RESULT_LIMIT:
             raise ParseError("Ungültiger BA-Seitencheckpoint")
         while True:
@@ -91,20 +97,31 @@ class BaJobsucheAdapter(SourceAdapter):
             items, total, capped = self.parse_list(result.text, url)
             if initial_total is None:
                 initial_total = total
-            if total != initial_total:
-                raise ParseError("BA-Trefferzahl während der Pagination geändert – keine vollständige Momentaufnahme")
+            total_changed = total_changed or total != initial_total
+            capped_seen = capped_seen or capped
             ids = {item.source_key for item in items}
-            if ids & seen:
-                raise ParseError("BA-Pagination wiederholt Anzeigen – Seiten verschoben oder Suchlimit erreicht")
+            new_items = [item for item in items if item.source_key not in seen]
+            overlap_count += len(ids & seen)
+            repeated_page = bool(items) and not new_items
+            rows_seen += len(items)
             seen.update(ids)
-            if len(seen) > total:
+            if len(seen) > total and not total_changed:
                 raise ParseError("BA-Liste enthält mehr Anzeigen als gemeldet")
-            last = len(seen) == total or len(seen) >= self.RESULT_LIMIT
-            signals = {"page": page, "reported_total": total, "unique_ids": len(seen),
-                       "capped": capped, "terminal": last, "search_url": self.search_url(params, 1)}
+            # Seitengrenzen folgen der Listenposition, nicht der deduplizierten Anzahl.
+            # Ein beweglicher Bestand ist keine atomare Momentaufnahme. Weiter sammeln,
+            # aber Abweichungen dauerhaft als Einschränkung der Abdeckung merken.
+            last = rows_seen >= min(total, self.RESULT_LIMIT) or repeated_page
+            signals = {"page": page, "reported_total": total, "initial_total": initial_total,
+                       "unique_ids": len(seen), "rows_seen": rows_seen, "total_changed": total_changed,
+                       "overlap_count": overlap_count, "repeated_page": repeated_page,
+                       "capped": capped_seen, "terminal": last, "search_url": self.search_url(params, 1)}
             yield ListPage(
-                items=items, reported_total=total, is_last=last, capped=capped and last,
-                next_checkpoint=None if last else {"page": page + 1, "seen_ids": sorted(seen), "total": total},
+                items=new_items, reported_total=total, is_last=last, capped=capped_seen and last,
+                next_checkpoint=None if last else {
+                    "page": page + 1, "seen_ids": sorted(seen), "total": initial_total,
+                    "rows_seen": rows_seen, "total_changed": total_changed,
+                    "overlap_count": overlap_count, "capped": capped_seen,
+                },
                 signals=signals,
             )
             if last:
@@ -114,9 +131,23 @@ class BaJobsucheAdapter(SourceAdapter):
     def assess_coverage(self, pages: list[dict[str, Any]], previous: dict[str, Any] | None) -> CoverageAssessment:
         sig = dict(pages[-1]) if pages else {}
         complete = bool(sig.get("terminal") and not sig.get("capped")
+                        and not sig.get("total_changed") and not sig.get("overlap_count")
+                        and not sig.get("repeated_page")
                         and sig.get("unique_ids") == sig.get("reported_total"))
-        note = ("BA-Suchbereich vollständig gelesen (eindeutige Anzeigenzahl entspricht der Trefferzahl)" if complete
-                else "BA-Suchbereich unvollständig oder Trefferobergrenze erreicht; Suche nach Ort/Beruf eingrenzen")
+        if complete:
+            note = "BA-Suchbereich vollständig gelesen (eindeutige Anzeigenzahl entspricht der Trefferzahl)"
+        else:
+            reasons = []
+            if sig.get("total_changed"):
+                reasons.append("BA-Trefferzahl hat sich während des Abrufs geändert; Anzeigen wurden weiter erfasst")
+            if sig.get("overlap_count"):
+                reasons.append(f"{sig['overlap_count']} seitenübergreifende Wiederholungen wurden nicht doppelt gezählt")
+            if sig.get("repeated_page"):
+                reasons.append("Seite ohne neue Anzeigen erreicht; Pagination beendet")
+            if sig.get("capped"):
+                reasons.append("Trefferobergrenze der BA; Suche nach Ort/Beruf eingrenzen")
+            note = "; ".join(reasons) if reasons else "BA-Suchbereich noch nicht vollständig gelesen"
+            note += "; kein Nachweis für entfernte Anzeigen"
         return CoverageAssessment(complete, sig, note)
 
     def parse_detail(self, result: FetchResult, item_key: str) -> ParsedPosting:

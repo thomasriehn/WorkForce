@@ -101,7 +101,7 @@ REGISTRY: list[dict[str, Any]] = [
         "adapter_key": "ba_jobsuche", "access_method": "html_list_jsonld", "allowed_domains": ["www.arbeitsagentur.de"],
         "terms_url": "https://www.arbeitsagentur.de/nutzungsbedingungen", "robots_url": "https://www.arbeitsagentur.de/robots.txt",
         "config_status": "permission_required",
-        "status_reason": "HTML-/JSON-LD-Adapter implementiert, Live-Prüfung ausstehend. Nutzungsbedingungen Nr. 2a (3): Freigabe mit Erlaubnisnachweis erforderlich.",
+        "status_reason": "HTML-/JSON-LD-Adapter im begrenzten Live-Test geprüft (11.11.2026). Nutzungsbedingungen Nr. 2a (3): Freigabe mit Erlaubnisnachweis erforderlich.",
         "request_interval_seconds": 5, "max_pages_per_run": 40, "max_details_per_run": 500,
         "scopes": [{"key": "stellen", "name": "BA-Stellenangebote (Suchbereich bei Trefferlimit eingrenzen)",
                     "mode": "full", "params": {"list_url": "https://www.arbeitsagentur.de/jobsuche/suche?angebotsart=1"}}],

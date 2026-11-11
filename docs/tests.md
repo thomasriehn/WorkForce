@@ -20,9 +20,21 @@ Stand: 10.11.2026. Dieses Dokument trennt strikt zwischen **geprüft** (mit Erge
   sechs Statistikdatensätze und ausgeliefertes Frontend erfolgreich. Prüfkonto danach entfernt.
 - Installations- und Startschritte in der laufenden Cloud-Instanz wiederholt geprüft. Ein vollständiger
   Compose-App-Build und Wiederherstellung in einer neu veröffentlichten Cloud-Instanz wurden hier nicht geprüft.
-- **Offen:** Live-Abgleich der BA-Jobsuche und neuer Live-Statistikabruf. Der Cloud-Proxy blockiert die BA-Domains
-  bis zur Übernahme der vorgemerkten Netzwerkfreigaben; für automatische Abrufe ist außerdem die Kontaktangabe
-  des Betreibers erforderlich. Details: [ba-jobsuche.md](ba-jobsuche.md).
+- Der anfangs durch den Cloud-Proxy blockierte BA-Live-Abgleich wurde nach Übernahme der Netzwerkfreigaben
+  nachgeholt (siehe folgende Ergänzung). Ein neuer Live-Statistikabruf bleibt außerhalb dieser Prüfung.
+
+### Korrektur wechselnder BA-Trefferzahlen (`ba-html-2`, 11.11.2026)
+
+- Live-Reproduktion: Seite 1 meldete 712.837, Seite 2 nur 712.835 Treffer. Beide HTML-Seiten und eine
+  verlinkte JSON-LD-Detailseite waren gültig; die starre Gleichheitsprüfung verursachte den Abbruch.
+- Live-Prüfung der Korrektur: drei Suchseiten mit 712.854 / 712.854 / 712.856 gemeldeten Treffern erfolgreich
+  verarbeitet, 70 eindeutige Anzeigen, fünf Wiederholungen dedupliziert. Eingeschränkte Abdeckung ausgewiesen.
+- Regressionstests prüfen steigende/sinkende und zum Ausgangswert zurückkehrende Gesamtzahlen, Überlappungen,
+  wiederholte Seiten ohne Fortschritt, Seitengrenzen, erhaltene Einschränkungen über Checkpoints sowie die
+  Fortsetzung eines fehlgeschlagenen alten Checkpoints. Mehrere solche Läufe archivieren keine fehlenden Anzeigen.
+- Gezielte Adapter-/Pipeline-Suite: 44 bestanden. Ruff für die geänderten Adapter-/Testdateien erfolgreich.
+- Gesamte Backend-Suite nach der Korrektur: **113 bestanden, 1 übersprungen** (48,33 s); derselbe optionale
+  Statistik-Probedateitest und dieselbe FastAPI/Starlette-Warnung wie oben.
 
 ## 1. Tests ausführen
 
