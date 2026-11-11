@@ -52,7 +52,15 @@ export function Popover({ label, icon = 'help', children, text, align = 'left' }
         {text}
       </button>
       {open ? (
-        <div className={`popover__panel popover__panel--${align}`} id={panelId} role="region" aria-label={label}>
+        <div
+          className={`popover__panel popover__panel--${align}`}
+          id={panelId}
+          role="region"
+          aria-label={label}
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest('a')) setOpen(false); // Verweis gewählt: Feld schließen
+          }}
+        >
           {children}
         </div>
       ) : null}

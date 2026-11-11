@@ -332,6 +332,11 @@ export default function SearchPage() {
       />
       <KindTabs value={filters.kindGroup} onChange={(kindGroup) => ctl.update({ kindGroup })} />
       <SearchBox ctl={ctl} />
+      {filters.synthetic ? (
+        <Alert tone="warn" compact title="Synthetische Testanzeigen sind eingeblendet">
+          Diese Ansicht enthält frei erfundene Anzeigen für Lasttests. Sie zählen sonst in keiner Auswertung mit; Dashboard und Standardansichten blenden sie aus.
+        </Alert>
+      ) : null}
 
       <FilterLayout ctl={ctl} meta={meta.data} metaError={meta.error?.message}>
         {(filterButton) => (

@@ -386,6 +386,14 @@ def seed_ops(db, today: date) -> None:
 def main() -> None:
     session = wf_db.session_factory()()
     try:
+        # Schutz: nie echte Daten anfassen. Sobald nicht-synthetische Regionen, Statistiken oder Anzeigen vorhanden sind, bricht das Skript ab.
+        foreign = session.execute(sql(
+            "SELECT (SELECT count(*) FROM region WHERE source_note IS DISTINCT FROM :note) "
+            "+ (SELECT count(*) FROM source_posting sp JOIN source s ON s.id = sp.source_id WHERE s.key NOT LIKE 'synth\\_%') "
+            "+ (SELECT count(*) FROM stat_dataset WHERE key NOT LIKE 'synth\\_%') + (SELECT count(*) FROM scan_run r JOIN source s ON s.id = r.source_id WHERE s.key NOT LIKE 'synth\\_%')"),
+            {"note": NOTE}).scalar_one()
+        if foreign:
+            sys.exit("Abbruch: Die Datenbank enthält nicht-synthetische Regionen, Statistiken, Läufe oder Anzeigen – dieses Skript würde sie löschen.")
         exists = session.execute(sql("SELECT 1 FROM source WHERE key LIKE 'synth_%' LIMIT 1")).first() or session.execute(sql("SELECT 1 FROM region LIMIT 1")).first()
         purge = "--purge" in sys.argv
         if exists and not purge and "--reset" not in sys.argv:
@@ -398,17 +406,7 @@ def main() -> None:
         today = local_today()
         seed_reference(session)
         seed_stats(session, today)
-        # Behelf nur für dieses Skript: workforce/normalize/occupation.py ruft ``SELECT set_limit(:l)`` mit einem
-        # Python-float auf; psycopg sendet double precision, pg_trgm kennt aber nur set_limit(real). Die Hilfsfunktion
-        # wird am Ende wieder entfernt, damit der Fehler im Backend nicht verdeckt bleibt.
-        session.execute(sql("CREATE OR REPLACE FUNCTION public.set_limit(double precision) RETURNS real LANGUAGE sql AS 'SELECT set_limit($1::real)'"))
-        session.commit()
-        try:
-            seed_postings(session, today)
-        finally:
-            session.rollback()
-            session.execute(sql("DROP FUNCTION IF EXISTS public.set_limit(double precision)"))
-            session.commit()
+        seed_postings(session, today)
         seed_ops(session, today)
         counts = session.execute(sql(
             "SELECT (SELECT count(*) FROM merged_posting), (SELECT count(*) FROM source_posting), (SELECT count(*) FROM scan_run), (SELECT count(*) FROM region), "

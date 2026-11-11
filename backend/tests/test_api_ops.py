@@ -105,6 +105,7 @@ def test_search_endpoints_export_and_injection_safety(client, db):
     assert len(geo["features"]) == 3 and geo["features"][0]["geometry"]["type"] == "MultiPolygon"
     assert client.get("/api/postings", params={"place": "Musterstadt", "radius_km": 20}).json()["near"]["approximate"] is True
     assert client.get("/api/postings", params={"place": "Atlantis", "radius_km": 20}).status_code == 422
+    assert client.get("/api/postings", params={"place": "Musterstadt"}).json()["near"]["name"] == "Musterstadt"  # ohne Umkreis: Standard 25 km
     sec = client.get("/api/postings").headers
     assert "default-src 'self'" in sec["content-security-policy"] and sec["x-content-type-options"] == "nosniff"
     # gespeicherte Suchen gehören dem jeweiligen Benutzer

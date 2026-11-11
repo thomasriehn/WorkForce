@@ -13,6 +13,25 @@ import { useFetch } from '../../lib/useFetch';
 
 const JOB_KINDS = ['aggregate', 'stats_check', 'maintenance', 'geo_rematch'] as const;
 
+/** Felder des Importergebnisses (workforce/stats/common.py) in Klartext. */
+const IMPORT_RESULT_LABELS: Record<string, string> = {
+  message: 'Hinweis',
+  dataset: 'Datensatz',
+  file_name: 'Datei',
+  period_key: 'Berichtszeitraum',
+  period_start: 'Beginn des Berichtszeitraums',
+  period_end: 'Ende des Berichtszeitraums',
+  revision: 'Revision',
+  replaced_revision: 'ersetzt Revision',
+  release_id: 'Nummer des Datenstands',
+  is_current: 'aktueller Datenstand',
+  rows: 'importierte Werte',
+  gebietsstand: 'Gebietsstand',
+  published_on: 'veröffentlicht am',
+  stored_path: 'aufbewahrte Quelldatei',
+  value_status: 'Werte nach Status (Fehlwerte bleiben Fehlwerte)',
+};
+
 /** Einmalige Anzeige eines generierten Passworts. */
 function SecretDialog({ secret, onClose }: { secret: { username: string; password: string } | null; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
@@ -430,6 +449,7 @@ function StatisticsCard() {
                         <span className="table__sub">
                           {d.attribution ?? 'keine Quellenangabe hinterlegt'} · Lizenz: {d.licence ?? 'unbekannt'} · Erscheinungsweise: {UPDATE_CYCLE_LABELS[d.update_cycle ?? ''] ?? 'unbekannt'}
                         </span>
+                        {d.notes ? <span className="table__sub">{d.notes}</span> : null}
                         <ExternalLink href={d.landing_url}>Seite des Herausgebers</ExternalLink>
                       </li>
                     ))}
@@ -479,14 +499,20 @@ function StatisticsCard() {
                     </p>
                   ) : null}
                   {result ? (
-                    <Alert tone="good" title="Import abgeschlossen" role="status">
+                    <Alert
+                      tone={result.status === 'imported' ? 'good' : 'neutral'}
+                      title={result.status === 'imported' ? 'Datei importiert' : result.status === 'unchanged' ? 'Keine Änderung – diese Datei ist bereits importiert' : 'Import abgeschlossen'}
+                      role="status"
+                    >
                       <dl className="kv kv--wrap">
-                        {Object.entries(result).map(([k, v]) => (
-                          <div key={k}>
-                            <dt>{k}</dt>
-                            <dd>{typeof v === 'object' ? JSON.stringify(v) : String(v)}</dd>
-                          </div>
-                        ))}
+                        {Object.entries(result)
+                          .filter(([k, v]) => k !== 'status' && v !== null && v !== '')
+                          .map(([k, v]) => (
+                            <div key={k}>
+                              <dt>{IMPORT_RESULT_LABELS[k] ?? k}</dt>
+                              <dd>{typeof v === 'object' ? JSON.stringify(v) : typeof v === 'boolean' ? (v ? 'ja' : 'nein') : String(v)}</dd>
+                            </div>
+                          ))}
                       </dl>
                     </Alert>
                   ) : null}
@@ -597,6 +623,11 @@ export function SystemTab() {
                     </div>
                   ))}
                 </dl>
+                {(data.counts.synthetic_postings ?? 0) > 0 ? (
+                  <p className="field__hint">
+                    Synthetische Testanzeigen zählen in keiner Auswertung mit. <Link to="/suche?synthetic=true&kind_group=all">In der Stellensuche einblenden</Link>
+                  </p>
+                ) : null}
               </Card>
               <Card title="Hintergrundaufträge">
                 {Object.keys(data.jobs).length === 0 ? (

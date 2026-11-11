@@ -129,8 +129,9 @@ export default function MapPage() {
   const needPopulation = view === 'rate' && Boolean(metrics.data?.population_release);
   const population = useFetch<StatsMap>(needPopulation ? `/api/stats/map?indicator=${POPULATION_INDICATOR}` : null, { cache: true });
 
-  const list = useFetch<PostingListResponse>(withQuery('/api/postings', [query, 'page_size=6'].filter(Boolean).join('&')));
-  const series = useFetch<TimeSeries>(withQuery('/api/timeseries', [query, 'days=90'].filter(Boolean).join('&')));
+  // Liste und Zeitreihe gehören zu den Anzeigenansichten; in der Kontextansicht werden sie nicht geladen.
+  const list = useFetch<PostingListResponse>(view === 'context' ? null : withQuery('/api/postings', [query, 'page_size=6'].filter(Boolean).join('&')));
+  const series = useFetch<TimeSeries>(view === 'context' ? null : withQuery('/api/timeseries', [query, 'days=90'].filter(Boolean).join('&')));
 
   const features = useMemo(() => geo.data?.features ?? [], [geo.data]);
   const keys = useMemo(() => features.map((f) => f.properties.key), [features]);
@@ -218,6 +219,11 @@ export default function MapPage() {
         lead="Regionale Schwerpunkte der beobachteten Anzeigen nach Kreisen. Die Karte zeigt erfasste Nachfrage aus den freigegebenen Quellen – keinen Nachweis eines Fachkräfteengpasses."
       />
       <KindTabs value={filters.kindGroup} onChange={(kindGroup) => ctl.update({ kindGroup })} />
+      {filters.synthetic ? (
+        <Alert tone="warn" compact title="Synthetische Testanzeigen sind eingeblendet">
+          Diese Ansicht enthält frei erfundene Anzeigen für Lasttests. Sie zählen sonst in keiner Auswertung mit; Dashboard und Standardansichten blenden sie aus.
+        </Alert>
+      ) : null}
 
       <FilterLayout ctl={ctl} meta={meta.data} metaError={meta.error?.message} inlineFrom={1640}>
         {(filterButton) => (
@@ -230,138 +236,170 @@ export default function MapPage() {
             </div>
 
             <div className="map-layout">
-              <Card className="map-card" flush>
-                <div className="map-card__controls">
-                  <Segmented<MapView> label="Dargestellte Größe" value={view} options={VIEWS.map((v) => ({ value: v, label: VIEW_SHORT[v], title: VIEW_TITLE[v] }))} onChange={(v) => ctl.setParams({ metric: v === 'weighted' ? null : v })} />
-                  {view === 'change' ? (
-                    <div className="row row--top">
-                      <Segmented
-                        label="Zeitraum"
-                        size="sm"
-                        value={String(days)}
-                        options={[
-                          { value: '7', label: '7 Tage' },
-                          { value: '30', label: '30 Tage' },
-                          { value: '90', label: '90 Tage' },
-                        ]}
-                        onChange={(v) => ctl.setParams({ days: v === '30' ? null : v })}
-                      />
-                      <Segmented
-                        label="Verglichen wird"
-                        size="sm"
-                        value={changeBase}
-                        options={[
-                          { value: 'weighted', label: 'anteilig gezählte Anzeigen' },
-                          { value: 'distinct', label: 'unterschiedliche Anzeigen' },
-                        ]}
-                        onChange={(v) => ctl.setParams({ basis: v === 'weighted' ? null : v })}
-                      />
-                    </div>
-                  ) : null}
-                  {view === 'context' ? (
-                    <div className="stack stack--tight">
-                      <Alert tone="neutral" compact title="Kontextansicht – keine Anzeigenkennzahl">
-                        Amtliche Statistik steht getrennt neben den Anzeigen und wird nicht mit ihnen verrechnet. Die Anzeigenfilter wirken auf diese Ansicht
-                        nicht.
-                      </Alert>
-                      {overview.error ? <ErrorState compact error={overview.error} onRetry={overview.reload} title="Kennzahlen nicht verfügbar" /> : null}
-                      {overview.data && indicators.length === 0 ? (
-                        <p className="muted">Es sind noch keine Kennzahlen der amtlichen Statistik angelegt.</p>
-                      ) : (
-                        <div className="form-grid">
-                          <div className="field">
-                            <label className="field__label" htmlFor={indicatorId}>
-                              Kennzahl
-                            </label>
-                            <select id={indicatorId} className="select" value={indicator ?? ''} onChange={(e) => ctl.setParams({ indicator: e.target.value, period: null })}>
-                              {indicatorGroups.map(([group, items]) => (
-                                <optgroup key={group} label={group}>
-                                  {items.map((i) => (
-                                    <option key={i.key} value={i.key}>
-                                      {i.name} ({i.unit})
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              ))}
-                            </select>
+              <div className="stack">
+                <Card className="map-card" flush>
+                  <div className="map-card__controls">
+                    <Segmented<MapView> label="Dargestellte Größe" value={view} options={VIEWS.map((v) => ({ value: v, label: VIEW_SHORT[v], title: VIEW_TITLE[v] }))} onChange={(v) => ctl.setParams({ metric: v === 'weighted' ? null : v })} />
+                    {view === 'change' ? (
+                      <div className="row row--top">
+                        <Segmented
+                          label="Zeitraum"
+                          size="sm"
+                          value={String(days)}
+                          options={[
+                            { value: '7', label: '7 Tage' },
+                            { value: '30', label: '30 Tage' },
+                            { value: '90', label: '90 Tage' },
+                          ]}
+                          onChange={(v) => ctl.setParams({ days: v === '30' ? null : v })}
+                        />
+                        <Segmented
+                          label="Verglichen wird"
+                          size="sm"
+                          value={changeBase}
+                          options={[
+                            { value: 'weighted', label: 'anteilig gezählte Anzeigen' },
+                            { value: 'distinct', label: 'unterschiedliche Anzeigen' },
+                          ]}
+                          onChange={(v) => ctl.setParams({ basis: v === 'weighted' ? null : v })}
+                        />
+                      </div>
+                    ) : null}
+                    {view === 'context' ? (
+                      <div className="stack stack--tight">
+                        <Alert tone="neutral" compact title="Kontextansicht – keine Anzeigenkennzahl">
+                          Amtliche Statistik steht getrennt neben den Anzeigen und wird nicht mit ihnen verrechnet. Die Anzeigenfilter wirken auf diese Ansicht
+                          nicht.
+                        </Alert>
+                        {overview.error ? <ErrorState compact error={overview.error} onRetry={overview.reload} title="Kennzahlen nicht verfügbar" /> : null}
+                        {overview.data && indicators.length === 0 ? (
+                          <p className="muted">Es sind noch keine Kennzahlen der amtlichen Statistik angelegt.</p>
+                        ) : (
+                          <div className="form-grid">
+                            <div className="field">
+                              <label className="field__label" htmlFor={indicatorId}>
+                                Kennzahl
+                              </label>
+                              <select id={indicatorId} className="select" value={indicator ?? ''} onChange={(e) => ctl.setParams({ indicator: e.target.value, period: null })}>
+                                {indicatorGroups.map(([group, items]) => (
+                                  <optgroup key={group} label={group}>
+                                    {items.map((i) => (
+                                      <option key={i.key} value={i.key}>
+                                        {i.name} ({i.unit})
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="field">
+                              <label className="field__label" htmlFor={periodId}>
+                                Berichtszeitraum und Revision
+                              </label>
+                              <select id={periodId} className="select" value={periodParam ?? ''} disabled={!stats.data || stats.data.periods.length === 0} onChange={(e) => ctl.setParams({ period: e.target.value || null })}>
+                                <option value="">jüngster Stand (aktuelle Revision)</option>
+                                {(stats.data?.periods ?? []).map((p) => (
+                                  <option key={`${p.period_key}~${p.revision}`} value={`${p.period_key}~${p.revision}`}>
+                                    {p.period_key} · Revision {p.revision}
+                                    {p.is_current ? '' : ' (ältere Fassung)'}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
-                          <div className="field">
-                            <label className="field__label" htmlFor={periodId}>
-                              Berichtszeitraum und Revision
-                            </label>
-                            <select id={periodId} className="select" value={periodParam ?? ''} disabled={!stats.data || stats.data.periods.length === 0} onChange={(e) => ctl.setParams({ period: e.target.value || null })}>
-                              <option value="">jüngster Stand (aktuelle Revision)</option>
-                              {(stats.data?.periods ?? []).map((p) => (
-                                <option key={`${p.period_key}~${p.revision}`} value={`${p.period_key}~${p.revision}`}>
-                                  {p.period_key} · Revision {p.revision}
-                                  {p.is_current ? '' : ' (ältere Fassung)'}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                      )}
-                      {currentIndicator?.definition ? <p className="field__hint">{currentIndicator.definition}{currentIndicator.population_group ? ` Bezugsgruppe: ${currentIndicator.population_group}.` : ''}</p> : null}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="map-card__head">
-                  <div>
-                    <h2 className="card__title">{model?.metricLabel ?? VIEW_SHORT[view]}</h2>
-                    <p className="card__subtitle">
-                      {view === 'context'
-                        ? stats.data?.release
-                          ? `Berichtszeitraum ${stats.data.release.period_key}, Revision ${stats.data.release.revision}, Alter ${fmtAgeDays(stats.data.release.age_days)}`
-                          : 'amtliche Statistik'
-                        : `${KIND_GROUP_LABELS[filters.kindGroup]} · ${metrics.data ? `Stichtag ${fmtDate(metrics.data.reference_date)} · ${metrics.data.scope.basis}` : 'wird geladen …'}`}
-                    </p>
+                        )}
+                        {currentIndicator?.definition ? <p className="field__hint">{currentIndicator.definition}{currentIndicator.population_group ? ` Bezugsgruppe: ${currentIndicator.population_group}.` : ''}</p> : null}
+                      </div>
+                    ) : null}
                   </div>
-                  {features.length > 0 ? (
-                    <div className="map-card__search">
-                      <Typeahead<KreisProperties> label="Kreis auswählen" hideLabel placeholder="Kreis suchen und auswählen" search={searchKreis} emptyText="Kein Kreis gefunden" onSelect={(o) => ctl.update({ kreise: [o.value.key] })} />
+                  <div className="map-card__head">
+                    <div>
+                      <h2 className="card__title">{model?.metricLabel ?? VIEW_SHORT[view]}</h2>
+                      <p className="card__subtitle">
+                        {view === 'context'
+                          ? stats.data?.release
+                            ? `Berichtszeitraum ${stats.data.release.period_key}, Revision ${stats.data.release.revision}, Alter ${fmtAgeDays(stats.data.release.age_days)}`
+                            : 'amtliche Statistik'
+                          : `${KIND_GROUP_LABELS[filters.kindGroup]} · ${metrics.data ? `Stichtag ${fmtDate(metrics.data.reference_date)} · ${metrics.data.scope.basis}` : 'wird geladen …'}`}
+                      </p>
                     </div>
-                  ) : null}
-                </div>
+                    {features.length > 0 ? (
+                      <div className="map-card__search">
+                        <Typeahead<KreisProperties> label="Kreis auswählen" hideLabel placeholder="Kreis suchen und auswählen" search={searchKreis} emptyText="Kein Kreis gefunden" onSelect={(o) => ctl.update({ kreise: [o.value.key] })} />
+                      </div>
+                    ) : null}
+                  </div>
 
-                {geo.error ? <ErrorState error={geo.error} onRetry={geo.reload} title="Die Kreisgrenzen konnten nicht geladen werden" /> : null}
-                {!geo.error && geo.data === undefined ? <LoadingState label="Kreisgrenzen werden geladen …" /> : null}
-                {geo.data && features.length === 0 ? (
-                  <EmptyState title="Kreisgrenzen noch nicht importiert" icon="map">
-                    Für die Karte fehlen die Verwaltungsgrenzen der Kreise und kreisfreien Städte. Sie werden einmalig aus den amtlichen Geodaten
-                    (VG250) importiert und danach lokal ausgeliefert – ohne externe Kartendienste. Liste, Summen und Zeitreihe unten funktionieren
-                    auch ohne Karte.
-                  </EmptyState>
+                  {geo.error ? <ErrorState error={geo.error} onRetry={geo.reload} title="Die Kreisgrenzen konnten nicht geladen werden" /> : null}
+                  {!geo.error && geo.data === undefined ? <LoadingState label="Kreisgrenzen werden geladen …" /> : null}
+                  {geo.data && features.length === 0 ? (
+                    <EmptyState title="Kreisgrenzen noch nicht importiert" icon="map">
+                      Für die Karte fehlen die Verwaltungsgrenzen der Kreise und kreisfreien Städte. Sie werden einmalig aus den amtlichen Geodaten
+                      (VG250) importiert und danach lokal ausgeliefert – ohne externe Kartendienste. Liste, Summen und Zeitreihe unten funktionieren
+                      auch ohne Karte.
+                    </EmptyState>
+                  ) : null}
+                  {geo.data && features.length > 0 ? (
+                    <div className={activeState.loading ? 'map-frame is-refreshing' : 'map-frame'}>
+                      <ChoroplethMap geojson={geo.data} styleOf={styleOf} selected={filters.kreise} onSelect={selectKreis} tooltipFor={tooltipFor} center={center} label={`Karte der Kreise: ${model?.metricLabel ?? VIEW_SHORT[view]}`} />
+                      {activeState.error ? (
+                        <div className="map-frame__overlay">
+                          <ErrorState compact error={activeState.error} onRetry={activeState.reload} title="Die Kartendaten konnten nicht geladen werden" />
+                        </div>
+                      ) : null}
+                      {view === 'context' && overview.data && indicators.length === 0 ? (
+                        <div className="map-frame__overlay">
+                          <EmptyState compact title="Noch keine amtlichen Statistiken importiert" icon="table">
+                            Bevölkerungs- und Arbeitsmarktdaten erscheinen hier nach dem ersten Import (Quellenverwaltung → System).
+                          </EmptyState>
+                        </div>
+                      ) : null}
+                      {view === 'context' && stats.data?.release && stats.data.values.length === 0 ? (
+                        <div className="map-frame__overlay">
+                          <EmptyState compact title="Keine Gesamtwerte je Kreis" icon="table">
+                            Für diese Kennzahl liegen im gewählten Datenstand keine ungegliederten Kreiswerte vor – etwa weil sie nur nach Altersgruppe oder Beruf
+                            veröffentlicht wird. Die Karte zeigt ausschließlich Gesamtwerte.
+                          </EmptyState>
+                        </div>
+                      ) : null}
+                      {view === 'context' && stats.data && !stats.data.release ? (
+                        <div className="map-frame__overlay">
+                          <EmptyState compact title="Keine Kreisdaten für diese Kennzahl" icon="table">
+                            {stats.data.message ?? 'Für diese Kennzahl liegen keine Kreisdaten vor.'}
+                          </EmptyState>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <p className="map-card__attribution">
+                    {geo.data?.attribution ? `Geodaten: ${geo.data.attribution}` : 'Geodaten: Quellenangabe wird mit dem Import der Kreisgrenzen geliefert.'}
+                    {geo.data?.gebietsstand ? ` · Gebietsstand ${fmtDate(geo.data.gebietsstand)}` : ''} · Kartendarstellung mit Leaflet, ohne externe Kartenkacheln.
+                    {features.length > 0 ? ' Mausrad-Zoom nach Klick in die Karte.' : ''}
+                  </p>
+                </Card>
+                {view !== 'context' ? (
+                  <Card title="Summen dieser Auswahl" subtitle="unabhängig vom ausgewählten Kreis">
+                    <Async state={metrics} compact>
+                      {(m) => (
+                        <>
+                          <TotalsBox totals={m.totals} totalLabel="zusammengeführte Anzeigen – deutschlandweit zählt jede einmal" onSelect={(g) => ctl.update({ geoClass: [g] })} />
+                          <dl className="kv">
+                            <div>
+                              <dt>Summe der anteilig gezählten Anzeigen über alle Kreise</dt>
+                              <dd>{fmtNum(m.weighted_sum, 2)}</dd>
+                            </div>
+                          </dl>
+                          <p className="field__hint">
+                            Teilweise ungeklärte, ungeklärte, deutschlandweit remote ausgeschriebene, ausländische und ortslose Anzeigen sind getrennt
+                            ausgewiesen und keinem Kreis anteilig zugeschlagen. Die Zahl der unterschiedlichen Anzeigen je Kreis ist <strong>nicht addierbar</strong>:
+                            Eine Anzeige mit mehreren Arbeitsorten zählt in jedem dieser Kreise.
+                          </p>
+                        </>
+                      )}
+                    </Async>
+                  </Card>
                 ) : null}
-                {geo.data && features.length > 0 ? (
-                  <div className={activeState.loading ? 'map-frame is-refreshing' : 'map-frame'}>
-                    <ChoroplethMap geojson={geo.data} styleOf={styleOf} selected={filters.kreise} onSelect={selectKreis} tooltipFor={tooltipFor} center={center} label={`Karte der Kreise: ${model?.metricLabel ?? VIEW_SHORT[view]}`} />
-                    {activeState.error ? (
-                      <div className="map-frame__overlay">
-                        <ErrorState compact error={activeState.error} onRetry={activeState.reload} title="Die Kartendaten konnten nicht geladen werden" />
-                      </div>
-                    ) : null}
-                    {view === 'context' && overview.data && indicators.length === 0 ? (
-                      <div className="map-frame__overlay">
-                        <EmptyState compact title="Noch keine amtlichen Statistiken importiert" icon="table">
-                          Bevölkerungs- und Arbeitsmarktdaten erscheinen hier nach dem ersten Import (Quellenverwaltung → System).
-                        </EmptyState>
-                      </div>
-                    ) : null}
-                    {view === 'context' && stats.data && !stats.data.release ? (
-                      <div className="map-frame__overlay">
-                        <EmptyState compact title="Keine Kreisdaten für diese Kennzahl" icon="table">
-                          {stats.data.message ?? 'Für diese Kennzahl liegen keine Kreisdaten vor.'}
-                        </EmptyState>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                <p className="map-card__attribution">
-                  {geo.data?.attribution ? `Geodaten: ${geo.data.attribution}` : 'Geodaten: Quellenangabe wird mit dem Import der Kreisgrenzen geliefert.'}
-                  {geo.data?.gebietsstand ? ` · Gebietsstand ${fmtDate(geo.data.gebietsstand)}` : ''} · Kartendarstellung mit Leaflet, ohne externe Kartenkacheln.
-                  {features.length > 0 ? ' Mausrad-Zoom nach Klick in die Karte.' : ''}
-                </p>
-              </Card>
+              </div>
 
               <div className="stack">
                 {model && features.length > 0 ? (
@@ -409,28 +447,6 @@ export default function MapPage() {
                   ) : null}
                 </Card>
 
-                {view !== 'context' ? (
-                  <Card title="Summen dieser Auswahl" subtitle="unabhängig vom ausgewählten Kreis">
-                    <Async state={metrics} compact>
-                      {(m) => (
-                        <>
-                          <TotalsBox totals={m.totals} totalLabel="zusammengeführte Anzeigen – deutschlandweit zählt jede einmal" onSelect={(g) => ctl.update({ geoClass: [g] })} />
-                          <dl className="kv">
-                            <div>
-                              <dt>Summe der anteilig gezählten Anzeigen über alle Kreise</dt>
-                              <dd>{fmtNum(m.weighted_sum, 2)}</dd>
-                            </div>
-                          </dl>
-                          <p className="field__hint">
-                            Teilweise ungeklärte, ungeklärte, deutschlandweit remote ausgeschriebene, ausländische und ortslose Anzeigen sind getrennt
-                            ausgewiesen und keinem Kreis anteilig zugeschlagen. Die Zahl der unterschiedlichen Anzeigen je Kreis ist <strong>nicht addierbar</strong>:
-                            Eine Anzeige mit mehreren Arbeitsorten zählt in jedem dieser Kreise.
-                          </p>
-                        </>
-                      )}
-                    </Async>
-                  </Card>
-                ) : null}
               </div>
             </div>
 

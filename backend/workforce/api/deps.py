@@ -124,6 +124,8 @@ def filters_dep(
     )
     if statuses:
         f.statuses = statuses
+    if (place or plz) and not radius_km:
+        radius_km = 25.0  # Ort/PLZ ohne Umkreisangabe: Standardumkreis statt stillschweigendem Ignorieren
     if radius_km and (place or plz):
         center = resolve_place(db, place, plz)
         if center is None:

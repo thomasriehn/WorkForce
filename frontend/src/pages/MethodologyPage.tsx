@@ -259,6 +259,7 @@ export default function MethodologyPage() {
                                 <th scope="row" className="col-wrap">
                                   {d.name}
                                   {d.dataset_code ? <span className="table__sub">Kennung {d.dataset_code}</span> : null}
+                                  {d.notes ? <span className="table__sub">{d.notes}</span> : null}
                                   <ExternalLink href={d.landing_url}>Seite des Herausgebers</ExternalLink>
                                 </th>
                                 <td>{d.publisher}</td>

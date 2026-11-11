@@ -130,9 +130,11 @@ export function ChoroplethMap({ geojson, styleOf, selected, onSelect, tooltipFor
       tip.style.left = `${Math.max(8, x)}px`;
       tip.style.top = `${Math.max(8, y)}px`;
     };
-    map.on('movestart zoomstart', () => {
+    const hideTip = () => {
       tip.hidden = true;
-    });
+    };
+    map.on('movestart zoomstart', hideTip);
+    window.addEventListener('scroll', hideTip, { passive: true });
 
     const keyOf = (l: L.Layer): string => ((l as L.Path & { feature?: GeoJSON.Feature }).feature?.properties as KreisProperties | undefined)?.key ?? '';
 
@@ -183,6 +185,7 @@ export function ChoroplethMap({ geojson, styleOf, selected, onSelect, tooltipFor
 
     return () => {
       observer.disconnect();
+      window.removeEventListener('scroll', hideTip);
       tip.remove();
       layerRef.current = null;
       mapRef.current = null;

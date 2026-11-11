@@ -278,7 +278,7 @@ async function walk(s) {
     await page.locator('summary', { hasText: 'Qualifikationen und Merkmale' }).click();
     const firstFeature = page.locator('.feature-groups input[type="checkbox"]').first();
     if ((await firstFeature.count()) > 0) {
-      await firstFeature.check();
+      await firstFeature.click(); // Zustand kommt aus der Adresszeile – daher click() statt check()
       await page.waitForURL(/features=/, { timeout: 8000 }).catch(() => problem(s.ctx, 'Merkmal setzt den Filter nicht'));
       await s.settle();
       await s.shot('suche-filter-beruf-merkmal', false);
@@ -290,6 +290,11 @@ async function walk(s) {
       await page.waitForURL(/kreise=\d{5}/, { timeout: 8000 }).catch(() => problem(s.ctx, 'Kreisvorschlag setzt den Kreisfilter nicht'));
       await s.settle();
     }
+    const asideOverflow = await page.evaluate(() => {
+      const aside = document.querySelector('.filter-aside');
+      return aside ? aside.scrollWidth - aside.clientWidth : 0;
+    });
+    if (asideOverflow > 1) problem(s.ctx, `Filterfeld läuft horizontal über (${asideOverflow}px)`);
     await s.flush('Filterfeld');
   }
 

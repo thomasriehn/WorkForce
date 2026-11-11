@@ -285,7 +285,7 @@ export function buildChangeModel({ change, metrics, keys }: ChangeOptions): MapM
     commonLines,
     showLowCount: true,
     lowCountLabel: `geringe Fallzahl: an beiden Stichtagen weniger als ${metrics?.small_count_threshold ?? 5} Anzeigen`,
-    noDataReasons: comparable ? [] : [noComparison],
+    noDataReasons: comparable ? [] : [noComparison.replace(/^Kein Vergleich möglich:\s*/, '')],
   };
 }
 

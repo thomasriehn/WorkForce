@@ -36,6 +36,8 @@ export interface Filters {
   geoClass: string[];
   employer: string;
   asOf: string;
+  /** Ausdrücklich synthetische Testanzeigen einbeziehen (standardmäßig ausgeblendet; nur über die Adresse/Systemansicht). */
+  synthetic: boolean;
 }
 
 export const DEFAULT_FILTERS: Filters = {
@@ -62,6 +64,7 @@ export const DEFAULT_FILTERS: Filters = {
   geoClass: [],
   employer: '',
   asOf: '',
+  synthetic: false,
 };
 
 export const DEFAULT_RADIUS_KM = 25;
@@ -92,6 +95,7 @@ export const FILTER_PARAM_NAMES = [
   'geo_class',
   'employer',
   'as_of',
+  'synthetic',
 ] as const;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -145,6 +149,7 @@ export function parseFilters(sp: URLSearchParams): Filters {
     geoClass: list(sp, 'geo_class'),
     employer: sp.get('employer') ?? '',
     asOf: date(sp, 'as_of'),
+    synthetic: sp.get('synthetic') === 'true' || sp.get('synthetic') === '1',
   };
 }
 
@@ -182,6 +187,7 @@ export function serializeFilters(f: Filters, target: URLSearchParams = new URLSe
   set('geo_class', f.geoClass.join(','));
   set('employer', f.employer.trim());
   set('as_of', f.asOf);
+  if (f.synthetic) target.set('synthetic', 'true');
   return target;
 }
 
@@ -210,6 +216,7 @@ export function countActiveFilters(f: Filters): number {
   if (f.contractTerm) n += 1;
   if (f.employer.trim()) n += 1;
   if (f.asOf) n += 1;
+  if (f.synthetic) n += 1;
   return n;
 }
 

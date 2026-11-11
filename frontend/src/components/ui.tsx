@@ -52,9 +52,9 @@ export function Badge({ tone = 'neutral', children, title, icon }: { tone?: Tone
   );
 }
 
-export function Chip({ children, onRemove, removeLabel, tone }: { children: ReactNode; onRemove?: () => void; removeLabel?: string; tone?: 'accent' | 'plain' | 'strong' }) {
+export function Chip({ children, onRemove, removeLabel, tone, title }: { children: ReactNode; onRemove?: () => void; removeLabel?: string; tone?: 'accent' | 'plain' | 'strong'; title?: string }) {
   return (
-    <span className={cx('chip', tone === 'accent' && 'chip--accent', tone === 'strong' && 'chip--strong')}>
+    <span className={cx('chip', tone === 'accent' && 'chip--accent', tone === 'strong' && 'chip--strong')} title={title}>
       <span className="chip__label">{children}</span>
       {onRemove ? (
         <button type="button" className="chip__remove" onClick={onRemove} aria-label={removeLabel ?? 'Entfernen'}>

@@ -219,7 +219,7 @@ export function FilterPanel({ ctl, meta, metaError }: PanelProps) {
         {f.kldb.length > 0 ? (
           <div className="chip-row">
             {f.kldb.map((code) => (
-              <Chip key={code} tone="accent" onRemove={() => update({ kldb: f.kldb.filter((c) => c !== code) })} removeLabel={`Beruf ${code} entfernen`}>
+              <Chip key={code} tone="accent" title={`${code} ${kldbNames.get(code) ?? ''}`.trim()} onRemove={() => update({ kldb: f.kldb.filter((c) => c !== code) })} removeLabel={`Beruf ${code} entfernen`}>
                 {code}
                 {kldbNames.get(code) ? ` ${kldbNames.get(code)}` : ''}
               </Chip>
@@ -233,7 +233,7 @@ export function FilterPanel({ ctl, meta, metaError }: PanelProps) {
           <label className="field__label" htmlFor={featureSearchId}>
             Merkmal suchen
           </label>
-          <input id={featureSearchId} className="input" type="search" value={featureTerm} placeholder="z. B. Führerschein, Englisch, Python" onChange={(e) => setFeatureTerm(e.target.value)} />
+          <input id={featureSearchId} className="input" type="search" value={featureTerm} placeholder="z. B. Englisch, Python" onChange={(e) => setFeatureTerm(e.target.value)} />
         </div>
         {meta && meta.features.length === 0 ? <p className="field__hint">Das Merkmalswörterbuch ist leer.</p> : null}
         <div className="feature-groups">
@@ -489,6 +489,7 @@ export function ActiveFilters({ ctl, meta }: { ctl: FilterController; meta: Meta
   for (const r of f.remote) chips.push({ key: `rm-${r}`, label: `Remote: ${REMOTE_LABELS[r] ?? r}`, remove: () => update({ remote: without(f.remote, r) }) });
   for (const g of f.geoClass) chips.push({ key: `geo-${g}`, label: `Ort: ${GEO_CLASS_SHORT[g as keyof typeof GEO_CLASS_SHORT] ?? g}`, remove: () => update({ geoClass: without(f.geoClass, g) }) });
   if (f.employer) chips.push({ key: 'emp', label: `Arbeitgeber: ${f.employer}`, remove: () => update({ employer: '' }) });
+  if (f.synthetic) chips.push({ key: 'synthetic', label: 'synthetische Testanzeigen eingeblendet', remove: () => update({ synthetic: false }) });
 
   if (chips.length === 0) return null;
   return (

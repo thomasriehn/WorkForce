@@ -121,6 +121,7 @@
 /* --- Formularfelder ------------------------------------------------------------------------------ */
 .field {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 5px;
   min-width: 0;
 }
@@ -209,6 +210,7 @@
 
 .form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
 
@@ -446,6 +448,7 @@
 .card__body {
   padding: var(--space-4) var(--space-5) var(--space-5);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   min-width: 0;
 }
@@ -633,6 +636,7 @@
 /* Inhalt einer geladenen Ansicht: Abschnitte mit gleichmäßigem Abstand */
 .async-content {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
   min-width: 0;
 }
@@ -962,6 +966,7 @@
   padding: var(--space-5);
   overflow-y: auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
 
@@ -1329,6 +1334,7 @@
 /* --- Filterfeld ---------------------------------------------------------------------------------- */
 .filter-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .filter-group {
@@ -1386,6 +1392,7 @@
 
 .filter-group__body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   padding: 2px var(--space-4) var(--space-4);
 }
